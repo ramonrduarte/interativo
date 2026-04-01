@@ -88,6 +88,9 @@ Role a página até **Environment variables** e adicione:
 | `NODE_ENV` | `production` |
 | `PORT` | `3001` |
 
+> A variável `PORT` define tanto a porta interna do Node.js quanto a porta exposta no host.  
+> Se a porta `3001` já estiver em uso no servidor, troque para outra (ex: `3002`).
+
 > Troque o valor de `DOMAIN` pelo subdomínio que você criou no DNS.
 
 ---
@@ -122,16 +125,26 @@ docker logs -f interativa
 
 Acesse no navegador:
 
+**Via rede interna (IP):**
+```
+http://192.168.0.110:3001        → Dashboard de administração
+http://192.168.0.110:3001/tv/    → App da TV (abrir no browser da TV)
+```
+
+**Via domínio externo (Traefik + SSL):**
 ```
 https://interativa.adrofecha.com.br        → Dashboard de administração
-https://interativa.adrofecha.com.br/tv/    → App da TV (abrir no browser da TV)
+https://interativa.adrofecha.com.br/tv/    → App da TV
 ```
+
+> Troque `192.168.0.110` pelo IP do seu servidor na rede local.  
+> Para descobrir o IP do servidor: `ip a | grep 192`
 
 ---
 
 ## 6. Parear uma TV
 
-1. No browser da TV, acesse `https://interativa.adrofecha.com.br/tv/`
+1. No browser da TV, acesse `http://IP_DO_SERVIDOR:3001/tv/` (rede interna) ou `https://interativa.adrofecha.com.br/tv/` (externo)
 2. Será exibido um código de 6 letras na tela
 3. No Dashboard, vá em **Telas → Parear TV**
 4. Selecione a tela e clique no código que aparecer
@@ -184,9 +197,18 @@ docker run --rm \
 
 ## Resumo de URLs
 
+### Rede interna (uso diário)
+| URL | Descrição |
+|---|---|
+| `http://192.168.0.110:3001` | Dashboard (administração) |
+| `http://192.168.0.110:3001/tv/` | App da TV |
+| `http://192.168.0.110:3001/api/health` | Status do servidor |
+
+### Domínio externo (acesso remoto via internet)
 | URL | Descrição |
 |---|---|
 | `https://interativa.adrofecha.com.br` | Dashboard (administração) |
 | `https://interativa.adrofecha.com.br/tv/` | App da TV |
 | `https://interativa.adrofecha.com.br/api/health` | Status do servidor |
-| `https://interativa.adrofecha.com.br/uploads/` | Arquivos de mídia |
+
+> Troque `192.168.0.110` pelo IP real do seu servidor. Para descobrir: `ip a | grep 192`

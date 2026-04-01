@@ -7,6 +7,8 @@ services:
     restart: unless-stopped
     networks:
       - network_public
+    ports:
+      - "${PORT:-3001}:3001"
     environment:
       - NODE_ENV=production
       - PORT=3001
