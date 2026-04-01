@@ -1,0 +1,8 @@
+node_modules/
+data/
+uploads/
+server/public/
+dist/
+.env
+*.log
+.claude/

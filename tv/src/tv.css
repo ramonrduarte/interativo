@@ -1,0 +1,111 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  width: 100vw; height: 100vh; overflow: hidden;
+  background: #000; color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.tv-root { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
+
+/* ── Portrait (vertical) root — rotates browser 90° so TV in pé works ─── */
+.tv-root.portrait {
+  width: 100vh;
+  height: 100vw;
+  position: fixed;
+  top: 0;
+  left: 0;
+  transform: rotate(-90deg) translateX(-100vh);
+  transform-origin: 0 0;
+  overflow: hidden;
+}
+
+/* ── Layout containers — landscape ──────────────────────────────────────── */
+.layout-fullscreen { width: 100%; height: 100%; display: grid; }
+.layout-split5050  { width: 100%; height: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+.layout-split7030  { width: 100%; height: 100%; display: grid; grid-template-columns: 7fr 3fr; gap: 2px; }
+.layout-topbottom  { width: 100%; height: 100%; display: grid; grid-template-rows: 1fr 1fr; gap: 2px; }
+.layout-grid2x2    { width: 100%; height: 100%; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2px; }
+.layout-mainbanner { width: 100%; height: 100%; display: grid; grid-template-rows: 5fr 1fr; gap: 2px; }
+
+/* ── Layout containers — portrait (vertical) ─────────────────────────────
+   These fill the rotated viewport (100vw tall × 100vh wide after rotation).
+   Use grid-template-rows to stack content vertically on the physical screen. */
+.layout-v-fullscreen  { width: 100%; height: 100%; display: grid; }
+.layout-v-half        { width: 100%; height: 100%; display: grid; grid-template-rows: 1fr 1fr; gap: 2px; }
+.layout-v-7030        { width: 100%; height: 100%; display: grid; grid-template-rows: 7fr 3fr; gap: 2px; }
+.layout-v-thirds      { width: 100%; height: 100%; display: grid; grid-template-rows: 1fr 1fr 1fr; gap: 2px; }
+.layout-v-mainbanner  { width: 100%; height: 100%; display: grid; grid-template-rows: 5fr 1fr; gap: 2px; }
+.layout-v-grid2x2     { width: 100%; height: 100%; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2px; }
+
+.layout-zone { overflow: hidden; position: relative; background: #111; }
+
+/* Ticker */
+.ticker-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; height: 60px;
+  display: flex; align-items: center; overflow: hidden; z-index: 100;
+}
+.ticker-inner {
+  white-space: nowrap; display: inline-block;
+  animation: ticker-scroll linear infinite;
+}
+@keyframes ticker-scroll {
+  from { transform: translateX(100vw); }
+  to   { transform: translateX(-100%); }
+}
+
+/* Offline screen */
+.offline-screen {
+  width: 100vw; height: 100vh; background: #0a0a0a;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+}
+.offline-screen h2 { font-size: 28px; color: #666; }
+.offline-screen p  { font-size: 16px; color: #444; }
+.reconnect-spinner {
+  width: 40px; height: 40px; border: 3px solid #222; border-top-color: #444;
+  border-radius: 50%; animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* No token screen */
+.setup-screen {
+  width: 100vw; height: 100vh; background: #0a0a0a;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 20px; padding: 40px; text-align: center;
+}
+.setup-screen h1 { font-size: 36px; color: #2d6ef5; }
+.setup-screen p  { font-size: 18px; color: #666; max-width: 500px; }
+.setup-code { background: #1a1a1a; border: 1px solid #333; padding: 12px 24px; border-radius: 8px; font-family: monospace; font-size: 14px; color: #aaa; word-break: break-all; }
+
+/* Content types */
+.content-image { width: 100%; height: 100%; object-fit: cover; display: block; }
+.content-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.content-iframe { width: 100%; height: 100%; border: none; display: block; }
+
+.content-text {
+  width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+  padding: 20px; word-break: break-word;
+}
+
+.content-clock {
+  width: 100%; height: 100%; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+.clock-time { font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; }
+.clock-date { opacity: .7; margin-top: 8px; }
+
+.content-priceboard {
+  width: 100%; height: 100%; overflow: hidden;
+  display: flex; flex-direction: column; padding: 20px;
+}
+.priceboard-title { text-align: center; padding-bottom: 16px; font-weight: 700; border-bottom: 2px solid currentColor; margin-bottom: 12px; }
+.priceboard-items { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 8px; }
+.priceboard-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.1); }
+.priceboard-name { flex: 1; }
+.priceboard-price { font-weight: 700; }
+
+/* Transition */
+.zone-fade-enter { opacity: 0; }
+.zone-fade-enter-active { opacity: 1; transition: opacity .5s ease; }
+.zone-fade-exit { opacity: 1; }
+.zone-fade-exit-active { opacity: 0; transition: opacity .5s ease; }

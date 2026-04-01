@@ -1,0 +1,13 @@
+{
+  "name": "interativa",
+  "private": true,
+  "workspaces": ["server", "dashboard", "tv"],
+  "scripts": {
+    "dev": "concurrently -n server,dashboard,tv -c blue,green,yellow \"npm run dev -w server\" \"npm run dev -w dashboard\" \"npm run dev -w tv\"",
+    "build": "npm run build -w dashboard && npm run build -w tv",
+    "start": "npm run start -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

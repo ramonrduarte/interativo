@@ -1,0 +1,18 @@
+services:
+  interativa:
+    image: interativa:latest
+    build: .
+    container_name: interativa
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - interativa_data:/app/data
+      - interativa_uploads:/app/uploads
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+
+volumes:
+  interativa_data:
+  interativa_uploads:
