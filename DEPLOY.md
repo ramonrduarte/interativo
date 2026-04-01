@@ -5,6 +5,7 @@
 - Servidor Linux com Docker + Portainer instalados
 - Traefik rodando com a rede `network_public` criada
 - Resolver Let's Encrypt configurado como `letsencryptresolver` no Traefik
+- PostgreSQL já rodando no servidor (mesmo que outras aplicações usam)
 - Registro DNS apontando o subdomínio para o IP do servidor
 
 ---
@@ -20,19 +21,32 @@ Valor: IP_DO_SEU_SERVIDOR
 TTL:   3600
 ```
 
-Aguarde a propagação (geralmente menos de 5 minutos).
+---
+
+## 2. Criar o banco de dados no PostgreSQL
+
+Conecte ao PostgreSQL do servidor e crie o banco para a aplicação:
+
+```bash
+# Acessar o container postgres (ajuste o nome do container se necessário)
+docker exec -it postgres psql -U postgres
+
+# Dentro do psql:
+CREATE DATABASE interativa;
+\q
+```
+
+As tabelas são criadas automaticamente pelo sistema na primeira inicialização (migrations automáticas).
 
 ---
 
-## 2. Verificar a rede network_public
-
-A rede já existe se você tem outros serviços rodando no servidor. Para confirmar, rode no terminal do servidor:
+## 3. Verificar a rede network_public
 
 ```bash
 docker network ls | grep network_public
 ```
 
-Se não aparecer, crie:
+Se não aparecer:
 
 ```bash
 docker network create network_public
@@ -40,32 +54,25 @@ docker network create network_public
 
 ---
 
-## 3. Criar os volumes de dados
+## 4. Criar o volume de uploads
 
-Os volumes guardam o banco de dados JSON e os arquivos de mídia enviados. Execute no terminal do servidor:
+Apenas as mídias (imagens e vídeos) precisam de volume. O banco fica no PostgreSQL.
 
 ```bash
-docker volume create interativa_data
 docker volume create interativa_uploads
-```
-
-Para verificar se foram criados:
-
-```bash
-docker volume ls | grep interativa
 ```
 
 ---
 
-## 4. Instalar pelo Portainer
+## 5. Instalar pelo Portainer
 
-### 4.1 Acessar a criação de Stack
+### 5.1 Acessar a criação de Stack
 
 **Portainer → Stacks → Add Stack**
 
 ---
 
-### 4.2 Preencher os campos
+### 5.2 Preencher os campos
 
 | Campo | Valor |
 |---|---|
@@ -78,39 +85,38 @@ docker volume ls | grep interativa
 
 ---
 
-### 4.3 Variáveis de ambiente
+### 5.3 Variáveis de ambiente
 
-Role a página até **Environment variables** e adicione:
+Role até **Environment variables** e adicione:
 
-| Variable | Value |
-|---|---|
-| `DOMAIN` | `interativa.adrofecha.com.br` |
-| `NODE_ENV` | `production` |
-| `PORT` | `3001` |
+| Variable | Value | Descrição |
+|---|---|---|
+| `DOMAIN` | `interativa.adrofecha.com.br` | Subdomínio para acesso externo |
+| `PORT` | `3001` | Porta exposta no host |
+| `NODE_ENV` | `production` | Modo produção |
+| `DATABASE_URL` | `postgresql://postgres:SUA_SENHA@postgres:5432/interativa` | Conexão PostgreSQL |
 
-> A variável `PORT` define tanto a porta interna do Node.js quanto a porta exposta no host.  
-> Se a porta `3001` já estiver em uso no servidor, troque para outra (ex: `3002`).
-
-> Troque o valor de `DOMAIN` pelo subdomínio que você criou no DNS.
+> **Atenção no DATABASE_URL:**
+> - Se o PostgreSQL roda em outro container Docker, use o **nome do container** como host (ex: `postgres`)
+> - Se o PostgreSQL roda no host diretamente, use o IP interno (ex: `192.168.0.110`)
+> - Troque `SUA_SENHA` pela senha real do PostgreSQL
 
 ---
 
-### 4.4 Fazer o deploy
+### 5.4 Fazer o deploy
 
 Clique em **Deploy the stack**.
 
 O Portainer vai:
 1. Clonar o repositório do GitHub
 2. Fazer o build da imagem (Node.js, instala dependências, compila o frontend)
-3. Subir o container conectado ao Traefik
+3. Subir o container — na primeira inicialização, as tabelas são criadas automaticamente no PostgreSQL
 
 O build leva aproximadamente **2 a 5 minutos** na primeira vez.
 
 ---
 
-## 5. Verificar se subiu corretamente
-
-No terminal do servidor:
+## 6. Verificar se subiu corretamente
 
 ```bash
 # Ver se o container está rodando
@@ -119,13 +125,15 @@ docker ps | grep interativa
 # Ver os logs em tempo real
 docker logs -f interativa
 
-# Deve aparecer algo como:
+# Deve aparecer:
+# [db] PostgreSQL — migrações aplicadas
+# [scheduler] Iniciado — verificando agendamentos a cada 30s
 # 🚀 Interativa Server  → http://localhost:3001
 ```
 
 Acesse no navegador:
 
-**Via rede interna (IP):**
+**Via rede interna (uso diário):**
 ```
 http://192.168.0.110:3001        → Dashboard de administração
 http://192.168.0.110:3001/tv/    → App da TV (abrir no browser da TV)
@@ -133,65 +141,62 @@ http://192.168.0.110:3001/tv/    → App da TV (abrir no browser da TV)
 
 **Via domínio externo (Traefik + SSL):**
 ```
-https://interativa.adrofecha.com.br        → Dashboard de administração
+https://interativa.adrofecha.com.br        → Dashboard
 https://interativa.adrofecha.com.br/tv/    → App da TV
 ```
 
-> Troque `192.168.0.110` pelo IP do seu servidor na rede local.  
-> Para descobrir o IP do servidor: `ip a | grep 192`
+> Troque `192.168.0.110` pelo IP do seu servidor: `ip a | grep 192`
 
 ---
 
-## 6. Parear uma TV
+## 7. Parear uma TV
 
-1. No browser da TV, acesse `http://IP_DO_SERVIDOR:3001/tv/` (rede interna) ou `https://interativa.adrofecha.com.br/tv/` (externo)
+1. No browser da TV, acesse `http://IP_DO_SERVIDOR:3001/tv/` (rede interna)
 2. Será exibido um código de 6 letras na tela
 3. No Dashboard, vá em **Telas → Parear TV**
 4. Selecione a tela e clique no código que aparecer
 
 ---
 
-## 7. Atualizar o sistema após mudanças no código
+## 8. Atualizar o sistema
 
 No Portainer → **Stacks → interativa → Editor** → clique em **Update the stack**.
 
-O Portainer vai clonar a versão mais recente do GitHub e reconstruir a imagem automaticamente.
-
-Ou via terminal do servidor:
-
-```bash
-cd /data/compose/interativa   # pasta onde o Portainer guarda o stack
-docker compose pull && docker compose up -d --build
-```
+O Portainer clona a versão mais recente do GitHub, reconstrói a imagem e aplica qualquer nova migration do banco automaticamente.
 
 ---
 
-## 8. Backup dos dados
+## 9. Backup dos uploads (imagens e vídeos)
 
-Os dados ficam nos volumes Docker. Para fazer backup:
+O banco de dados é gerenciado pelo PostgreSQL (use o backup padrão do seu postgres).  
+Para as mídias enviadas:
 
 ```bash
-# Backup do banco de dados JSON
-docker run --rm \
-  -v interativa_data:/data \
-  -v $(pwd):/backup \
-  alpine tar czf /backup/interativa_data_$(date +%Y%m%d).tar.gz -C /data .
-
-# Backup das mídias (imagens e vídeos)
+# Backup do volume de uploads
 docker run --rm \
   -v interativa_uploads:/data \
   -v $(pwd):/backup \
   alpine tar czf /backup/interativa_uploads_$(date +%Y%m%d).tar.gz -C /data .
+
+# Restaurar
+docker run --rm \
+  -v interativa_uploads:/data \
+  -v $(pwd):/backup \
+  alpine tar xzf /backup/interativa_uploads_20250101.tar.gz -C /data
 ```
 
-Para restaurar:
+---
+
+## Desenvolvimento local (sem PostgreSQL)
+
+Para rodar na máquina local durante desenvolvimento, **não defina `DATABASE_URL`**. O sistema detecta automaticamente e usa SQLite (`data/interativa.db`):
 
 ```bash
-docker run --rm \
-  -v interativa_data:/data \
-  -v $(pwd):/backup \
-  alpine tar xzf /backup/interativa_data_20250101.tar.gz -C /data
+npm install
+npm run dev
 ```
+
+Acesse em `http://localhost:5173` (dashboard) e `http://localhost:5174` (TV).
 
 ---
 
@@ -204,11 +209,8 @@ docker run --rm \
 | `http://192.168.0.110:3001/tv/` | App da TV |
 | `http://192.168.0.110:3001/api/health` | Status do servidor |
 
-### Domínio externo (acesso remoto via internet)
+### Domínio externo
 | URL | Descrição |
 |---|---|
-| `https://interativa.adrofecha.com.br` | Dashboard (administração) |
+| `https://interativa.adrofecha.com.br` | Dashboard |
 | `https://interativa.adrofecha.com.br/tv/` | App da TV |
-| `https://interativa.adrofecha.com.br/api/health` | Status do servidor |
-
-> Troque `192.168.0.110` pelo IP real do seu servidor. Para descobrir: `ip a | grep 192`

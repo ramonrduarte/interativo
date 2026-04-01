@@ -12,8 +12,8 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3001
+      - DATABASE_URL=${DATABASE_URL}
     volumes:
-      - interativa_data:/app/data
       - interativa_uploads:/app/uploads
     labels:
       - "traefik.enable=true"
@@ -32,7 +32,6 @@ services:
           memory: 512M
 
 volumes:
-  interativa_data:
   interativa_uploads:
 
 networks:

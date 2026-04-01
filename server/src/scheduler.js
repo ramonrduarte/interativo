@@ -2,18 +2,19 @@ const { db } = require('./db')
 
 let pushToScreen  // injected after socket initializes to avoid circular dep
 
-// Track the last playlist pushed per screen to avoid redundant pushes
 const lastPushed = new Map() // screenId -> playlistId
 
-function getActivePlaylistId(screen) {
+async function getActivePlaylistId(screen) {
   const now = new Date()
-  const currentDay = now.getDay()
-  const hh = String(now.getHours()).padStart(2, '0')
-  const mm = String(now.getMinutes()).padStart(2, '0')
+  const currentDay  = now.getDay()
+  const hh          = String(now.getHours()).padStart(2, '0')
+  const mm          = String(now.getMinutes()).padStart(2, '0')
   const currentTime = `${hh}:${mm}`
 
-  const active = db.schedules
-    .where(s => s.screen_id == screen.id && s.active !== false)
+  const schedules = await db.schedules.where(
+    s => s.screen_id == screen.id && s.active !== false
+  )
+  const active = schedules
     .filter(s => {
       const days = s.days || []
       if (!days.includes(currentDay)) return false
@@ -24,35 +25,41 @@ function getActivePlaylistId(screen) {
   return active.length > 0 ? active[0].playlist_id : screen.playlist_id
 }
 
-function tick() {
+async function tick() {
   if (!pushToScreen) return
-  const screens = db.screens.all()
-  for (const screen of screens) {
-    const activeId = getActivePlaylistId(screen)
-    const prev = lastPushed.get(screen.id)
-    if (prev !== activeId) {
-      lastPushed.set(screen.id, activeId)
-      pushToScreen(screen.id)
-      console.log(`[scheduler] Screen ${screen.id} (${screen.name}): playlist mudou para ${activeId ?? 'nenhuma'}`)
+  try {
+    const screens = await db.screens.all()
+    for (const screen of screens) {
+      const activeId = await getActivePlaylistId(screen)
+      const prev     = lastPushed.get(screen.id)
+      if (prev !== activeId) {
+        lastPushed.set(screen.id, activeId)
+        await pushToScreen(screen.id)
+        console.log(`[scheduler] Screen ${screen.id} (${screen.name}): playlist → ${activeId ?? 'nenhuma'}`)
+      }
     }
+  } catch (e) {
+    console.error('[scheduler] erro no tick:', e.message)
   }
 }
 
-function startScheduler(pushFn) {
+async function startScheduler(pushFn) {
   pushToScreen = pushFn
-  // Run once at startup to populate lastPushed without pushing
-  const screens = db.screens.all()
-  for (const screen of screens) {
-    lastPushed.set(screen.id, getActivePlaylistId(screen))
+  // Populate lastPushed at startup without pushing
+  try {
+    const screens = await db.screens.all()
+    for (const screen of screens) {
+      lastPushed.set(screen.id, await getActivePlaylistId(screen))
+    }
+  } catch (e) {
+    console.error('[scheduler] erro ao inicializar:', e.message)
   }
-  // Check every 30 seconds (catches changes within the minute)
   setInterval(tick, 30_000)
   console.log('[scheduler] Iniciado — verificando agendamentos a cada 30s')
 }
 
-// Call this whenever a schedule is created/updated/deleted so changes take effect immediately
 function triggerCheck() {
-  tick()
+  tick().catch(e => console.error('[scheduler] triggerCheck erro:', e.message))
 }
 
 module.exports = { startScheduler, triggerCheck }

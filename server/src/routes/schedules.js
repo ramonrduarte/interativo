@@ -4,9 +4,9 @@ const { triggerCheck } = require('../scheduler')
 
 const router = express.Router()
 
-function enrichSchedule(s) {
-  const screen   = s.screen_id   ? db.screens.get(s.screen_id)     : null
-  const playlist = s.playlist_id ? db.playlists.get(s.playlist_id) : null
+async function enrichSchedule(s) {
+  const screen   = s.screen_id   ? await db.screens.get(s.screen_id)     : null
+  const playlist = s.playlist_id ? await db.playlists.get(s.playlist_id) : null
   return {
     ...s,
     screen_name:   screen?.name   || null,
@@ -14,65 +14,69 @@ function enrichSchedule(s) {
   }
 }
 
-// GET /api/schedules?screen_id=X
-router.get('/', (req, res) => {
-  let rows = db.schedules.all()
-  if (req.query.screen_id) rows = rows.filter(s => s.screen_id == req.query.screen_id)
-  res.json(rows.map(enrichSchedule))
+router.get('/', async (req, res) => {
+  try {
+    let rows = await db.schedules.all()
+    if (req.query.screen_id) rows = rows.filter(s => s.screen_id == req.query.screen_id)
+    res.json(await Promise.all(rows.map(enrichSchedule)))
+  } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// POST /api/schedules
-router.post('/', (req, res) => {
-  const { screen_id, playlist_id, name, days, start_time, end_time, priority = 0 } = req.body
-  if (!screen_id)   return res.status(400).json({ error: 'screen_id é obrigatório' })
-  if (!playlist_id) return res.status(400).json({ error: 'playlist_id é obrigatório' })
-  if (!start_time || !end_time) return res.status(400).json({ error: 'start_time e end_time são obrigatórios' })
-  if (!Array.isArray(days) || days.length === 0) return res.status(400).json({ error: 'days é obrigatório' })
-
-  const row = db.schedules.insert({
-    screen_id:   Number(screen_id),
-    playlist_id: Number(playlist_id),
-    name:        name || null,
-    days,
-    start_time,
-    end_time,
-    priority:    Number(priority),
-    active:      true,
-  })
-  triggerCheck()
-  res.json(enrichSchedule(row))
+router.post('/', async (req, res) => {
+  try {
+    const { screen_id, playlist_id, name, days, start_time, end_time, priority = 0 } = req.body
+    if (!screen_id)   return res.status(400).json({ error: 'screen_id é obrigatório' })
+    if (!playlist_id) return res.status(400).json({ error: 'playlist_id é obrigatório' })
+    if (!start_time || !end_time) return res.status(400).json({ error: 'start_time e end_time são obrigatórios' })
+    if (!Array.isArray(days) || days.length === 0) return res.status(400).json({ error: 'days é obrigatório' })
+    const row = await db.schedules.insert({
+      screen_id:   Number(screen_id),
+      playlist_id: Number(playlist_id),
+      name:        name || null,
+      days,
+      start_time,
+      end_time,
+      priority:    Number(priority),
+      active:      true,
+    })
+    triggerCheck()
+    res.json(await enrichSchedule(row))
+  } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// GET /api/schedules/:id
-router.get('/:id', (req, res) => {
-  const s = db.schedules.get(req.params.id)
-  if (!s) return res.status(404).json({ error: 'Não encontrado' })
-  res.json(enrichSchedule(s))
+router.get('/:id', async (req, res) => {
+  try {
+    const s = await db.schedules.get(req.params.id)
+    if (!s) return res.status(404).json({ error: 'Não encontrado' })
+    res.json(await enrichSchedule(s))
+  } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// PUT /api/schedules/:id
-router.put('/:id', (req, res) => {
-  const { screen_id, playlist_id, name, days, start_time, end_time, priority, active } = req.body
-  const s = db.schedules.update(req.params.id, {
-    screen_id:   screen_id   !== undefined ? Number(screen_id)   : undefined,
-    playlist_id: playlist_id !== undefined ? Number(playlist_id) : undefined,
-    name:        name        !== undefined ? name                : undefined,
-    days:        days        !== undefined ? days                : undefined,
-    start_time:  start_time  !== undefined ? start_time         : undefined,
-    end_time:    end_time    !== undefined ? end_time           : undefined,
-    priority:    priority    !== undefined ? Number(priority)   : undefined,
-    active:      active      !== undefined ? Boolean(active)    : undefined,
-  })
-  if (!s) return res.status(404).json({ error: 'Não encontrado' })
-  triggerCheck()
-  res.json(enrichSchedule(s))
+router.put('/:id', async (req, res) => {
+  try {
+    const { screen_id, playlist_id, name, days, start_time, end_time, priority, active } = req.body
+    const s = await db.schedules.update(req.params.id, {
+      screen_id:   screen_id   !== undefined ? Number(screen_id)   : undefined,
+      playlist_id: playlist_id !== undefined ? Number(playlist_id) : undefined,
+      name:        name        !== undefined ? name                : undefined,
+      days:        days        !== undefined ? days                : undefined,
+      start_time:  start_time  !== undefined ? start_time         : undefined,
+      end_time:    end_time    !== undefined ? end_time           : undefined,
+      priority:    priority    !== undefined ? Number(priority)   : undefined,
+      active:      active      !== undefined ? Boolean(active)    : undefined,
+    })
+    if (!s) return res.status(404).json({ error: 'Não encontrado' })
+    triggerCheck()
+    res.json(await enrichSchedule(s))
+  } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// DELETE /api/schedules/:id
-router.delete('/:id', (req, res) => {
-  db.schedules.remove(req.params.id)
-  triggerCheck()
-  res.json({ ok: true })
+router.delete('/:id', async (req, res) => {
+  try {
+    await db.schedules.remove(req.params.id)
+    triggerCheck()
+    res.json({ ok: true })
+  } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
 module.exports = router

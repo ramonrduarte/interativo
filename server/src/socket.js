@@ -2,21 +2,23 @@ const { Server } = require('socket.io')
 const { db } = require('./db')
 
 let io
-const registry = new Map()       // token -> { socketId, screenId, lastSeen }
-const pairingRegistry = new Map() // code  -> socketId
+const registry        = new Map()  // token -> { socketId, screenId, lastSeen }
+const pairingRegistry = new Map()  // code  -> socketId
 
 // ---------------------------------------------------------------------------
 // Evaluate which playlist is active right now for a screen
 // ---------------------------------------------------------------------------
-function getActivePlaylistId(screen) {
+async function getActivePlaylistId(screen) {
   const now = new Date()
-  const currentDay = now.getDay() // 0=Sun … 6=Sat
-  const hh = String(now.getHours()).padStart(2, '0')
-  const mm = String(now.getMinutes()).padStart(2, '0')
+  const currentDay  = now.getDay()
+  const hh          = String(now.getHours()).padStart(2, '0')
+  const mm          = String(now.getMinutes()).padStart(2, '0')
   const currentTime = `${hh}:${mm}`
 
-  const active = db.schedules
-    .where(s => s.screen_id == screen.id && s.active !== false)
+  const schedules = await db.schedules.where(
+    s => s.screen_id == screen.id && s.active !== false
+  )
+  const active = schedules
     .filter(s => {
       const days = s.days || []
       if (!days.includes(currentDay)) return false
@@ -30,43 +32,42 @@ function getActivePlaylistId(screen) {
 // ---------------------------------------------------------------------------
 // Build the full config payload sent to a TV
 // ---------------------------------------------------------------------------
-function buildPayload(screenId) {
-  const screen = db.screens.get(screenId)
+async function buildPayload(screenId) {
+  const screen = await db.screens.get(screenId)
   if (!screen) return null
 
-  const ticker = screen.ticker_id ? db.tickers.get(screen.ticker_id) : null
-  const playlistId = getActivePlaylistId(screen)
+  const ticker     = screen.ticker_id ? await db.tickers.get(screen.ticker_id) : null
+  const playlistId = await getActivePlaylistId(screen)
 
   const slides = []
   if (playlistId) {
-    const rawSlides = db.playlistSlides
-      .where(s => s.playlist_id == playlistId)
-      .sort((a, b) => a.position - b.position)
+    const rawSlides = await db.playlistSlides.where(s => s.playlist_id == playlistId)
+    rawSlides.sort((a, b) => a.position - b.position)
 
     for (const slide of rawSlides) {
-      const layout = slide.layout_id ? db.layouts.get(slide.layout_id) : null
+      const layout      = slide.layout_id ? await db.layouts.get(slide.layout_id) : null
       const zoneContent = slide.zone_content || {}
-      const zones = {}
+      const zones       = {}
 
-      Object.entries(zoneContent).forEach(([zoneIdx, mediaId]) => {
-        if (!mediaId) return
-        const media = db.media.get(mediaId)
-        if (!media) return
+      for (const [zoneIdx, mediaId] of Object.entries(zoneContent)) {
+        if (!mediaId) continue
+        const media = await db.media.get(mediaId)
+        if (!media) continue
         zones[Number(zoneIdx)] = {
-          type: media.type,
-          url: media.filename ? `/uploads/${media.filename}` : (media.url || null),
-          content: media.content || null,
-          name: media.name,
+          type:      media.type,
+          url:       media.filename ? `/uploads/${media.filename}` : (media.url || null),
+          content:   media.content || null,
+          name:      media.name,
           objectFit: media.object_fit || 'cover',
         }
-      })
+      }
 
       slides.push({
-        id: slide.id,
+        id:       slide.id,
         duration: slide.duration || 10,
         layout: {
           template: layout?.template || 'fullscreen',
-          zones: layout?.config?.zones || [{ id: 0, label: 'Principal' }],
+          zones:    layout?.config?.zones || [{ id: 0, label: 'Principal' }],
         },
         zones,
       })
@@ -75,11 +76,10 @@ function buildPayload(screenId) {
 
   return {
     version: Date.now(),
-    screen: { id: screen.id, name: screen.name, token: screen.token, orientation: screen.orientation || 'landscape' },
+    screen:  { id: screen.id, name: screen.name, token: screen.token, orientation: screen.orientation || 'landscape' },
     slides,
     ticker: ticker ? {
-      id: ticker.id,
-      // Support both old single `message` and new `messages` array
+      id:       ticker.id,
       messages: ticker.messages?.length
         ? ticker.messages
         : [{ text: ticker.message || '', duration: 10 }],
@@ -97,10 +97,10 @@ function buildPayload(screenId) {
 function initSocket(server) {
   io = new Server(server, { cors: { origin: '*' } })
 
-  io.on('connection', socket => {
+  io.on('connection', async socket => {
     const { token, pairing } = socket.handshake.query
 
-    // ── Pairing mode: TV waiting to be linked ──────────────────────────────
+    // ── Pairing mode ──────────────────────────────────────────────────────────
     if (pairing) {
       const code = pairing.toUpperCase()
       pairingRegistry.set(code, socket.id)
@@ -108,15 +108,15 @@ function initSocket(server) {
       return
     }
 
-    // ── Normal TV connection ───────────────────────────────────────────────
+    // ── Normal TV connection ──────────────────────────────────────────────────
     if (token && token !== 'dashboard') {
-      const screen = db.screens.findOne(s => s.token === token)
+      const screen = await db.screens.findOne(s => s.token === token)
       if (!screen) { socket.disconnect(); return }
 
       socket.join(token)
       registry.set(token, { socketId: socket.id, screenId: screen.id, lastSeen: new Date().toISOString() })
 
-      const payload = buildPayload(screen.id)
+      const payload = await buildPayload(screen.id)
       if (payload) socket.emit('config:update', payload)
 
       io.to('dashboard').emit('screen:status', {
@@ -136,7 +136,7 @@ function initSocket(server) {
       return
     }
 
-    // ── Dashboard connection ───────────────────────────────────────────────
+    // ── Dashboard connection ──────────────────────────────────────────────────
     socket.join('dashboard')
     registry.forEach((info, t) => {
       socket.emit('screen:status', {
@@ -148,7 +148,9 @@ function initSocket(server) {
   return io
 }
 
-// Called by POST /api/pair — sends token directly to the waiting TV socket
+// ---------------------------------------------------------------------------
+// Called by POST /api/pair
+// ---------------------------------------------------------------------------
 function completePairing(code, screenToken) {
   const socketId = pairingRegistry.get(code.toUpperCase())
   if (!socketId || !io) return false
@@ -157,10 +159,10 @@ function completePairing(code, screenToken) {
   return true
 }
 
-function pushToScreen(screenId) {
-  const screen = db.screens.get(screenId)
+async function pushToScreen(screenId) {
+  const screen = await db.screens.get(screenId)
   if (!screen || !io) return false
-  const payload = buildPayload(screenId)
+  const payload = await buildPayload(screenId)
   if (!payload) return false
   io.to(screen.token).emit('config:update', payload)
   return true

@@ -6,79 +6,77 @@ const { pushToScreen, registry } = require('../socket')
 module.exports = function screenRoutes(_io) {
   const router = express.Router()
 
-  function enrichScreen(s) {
-    const playlist = s.playlist_id ? db.playlists.get(s.playlist_id) : null
-    const ticker   = s.ticker_id   ? db.tickers.get(s.ticker_id)   : null
-    const slideCount = s.playlist_id
-      ? db.playlistSlides.where(sl => sl.playlist_id == s.playlist_id).length
-      : 0
-
+  async function enrichScreen(s) {
+    const playlist   = s.playlist_id ? await db.playlists.get(s.playlist_id) : null
+    const ticker     = s.ticker_id   ? await db.tickers.get(s.ticker_id)     : null
+    const slides     = s.playlist_id ? await db.playlistSlides.where(sl => sl.playlist_id == s.playlist_id) : []
     return {
       ...s,
       playlist_name: playlist?.name || null,
       ticker_name:   ticker?.name   || null,
-      slide_count:   slideCount,
-      online: registry.has(s.token),
+      slide_count:   slides.length,
+      online:        registry.has(s.token),
     }
   }
 
-  // GET /api/screens
-  router.get('/', (_req, res) => {
-    res.json(
-      db.screens.all()
-        .sort((a, b) => b.created_at.localeCompare(a.created_at))
-        .map(enrichScreen)
-    )
+  router.get('/', async (_req, res) => {
+    try {
+      const screens = await db.screens.all()
+      const enriched = await Promise.all(screens.map(enrichScreen))
+      res.json(enriched.sort((a, b) => b.created_at.localeCompare(a.created_at)))
+    } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
-  // POST /api/screens
-  router.post('/', (req, res) => {
-    const { name, playlist_id, ticker_id, orientation } = req.body
-    if (!name) return res.status(400).json({ error: 'name é obrigatório' })
-
-    const screen = db.screens.insert({
-      name,
-      token:       uuidv4(),
-      playlist_id: playlist_id ? Number(playlist_id) : null,
-      ticker_id:   ticker_id   ? Number(ticker_id)   : null,
-      orientation: orientation || 'landscape',
-    })
-    res.json(enrichScreen(screen))
+  router.post('/', async (req, res) => {
+    try {
+      const { name, playlist_id, ticker_id, orientation } = req.body
+      if (!name) return res.status(400).json({ error: 'name é obrigatório' })
+      const screen = await db.screens.insert({
+        name,
+        token:       uuidv4(),
+        playlist_id: playlist_id ? Number(playlist_id) : null,
+        ticker_id:   ticker_id   ? Number(ticker_id)   : null,
+        orientation: orientation || 'landscape',
+      })
+      res.json(await enrichScreen(screen))
+    } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
-  // GET /api/screens/:id
-  router.get('/:id', (req, res) => {
-    const s = db.screens.get(req.params.id)
-    if (!s) return res.status(404).json({ error: 'Não encontrado' })
-    res.json(enrichScreen(s))
+  router.get('/:id', async (req, res) => {
+    try {
+      const s = await db.screens.get(req.params.id)
+      if (!s) return res.status(404).json({ error: 'Não encontrado' })
+      res.json(await enrichScreen(s))
+    } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
-  // PUT /api/screens/:id
-  router.put('/:id', (req, res) => {
-    const { name, playlist_id, ticker_id, orientation } = req.body
-
-    const s = db.screens.update(req.params.id, {
-      name,
-      playlist_id:  playlist_id  ? Number(playlist_id)  : null,
-      ticker_id:    ticker_id    ? Number(ticker_id)    : null,
-      orientation:  orientation  || 'landscape',
-    })
-    if (!s) return res.status(404).json({ error: 'Não encontrado' })
-
-    pushToScreen(Number(req.params.id))
-    res.json(enrichScreen(s))
+  router.put('/:id', async (req, res) => {
+    try {
+      const { name, playlist_id, ticker_id, orientation } = req.body
+      const s = await db.screens.update(req.params.id, {
+        name,
+        playlist_id: playlist_id ? Number(playlist_id) : null,
+        ticker_id:   ticker_id   ? Number(ticker_id)   : null,
+        orientation: orientation || 'landscape',
+      })
+      if (!s) return res.status(404).json({ error: 'Não encontrado' })
+      await pushToScreen(Number(req.params.id))
+      res.json(await enrichScreen(s))
+    } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
-  // DELETE /api/screens/:id
-  router.delete('/:id', (req, res) => {
-    db.screens.remove(req.params.id)
-    res.json({ ok: true })
+  router.delete('/:id', async (req, res) => {
+    try {
+      await db.screens.remove(req.params.id)
+      res.json({ ok: true })
+    } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
-  // POST /api/screens/:id/push
-  router.post('/:id/push', (req, res) => {
-    const ok = pushToScreen(Number(req.params.id))
-    res.json({ ok })
+  router.post('/:id/push', async (req, res) => {
+    try {
+      const ok = await pushToScreen(Number(req.params.id))
+      res.json({ ok })
+    } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
   return router
