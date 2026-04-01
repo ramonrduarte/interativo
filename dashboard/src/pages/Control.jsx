@@ -28,7 +28,13 @@ export default function Control() {
   }
 
   function getTvUrl(token) {
-    return `${window.location.protocol}//${window.location.hostname}:5174?token=${token}`
+    const { protocol, hostname, port } = window.location
+    // Em dev (porta 5173) aponta para o servidor Vite da TV na 5174
+    // Em produção aponta para /tv/ na mesma porta do servidor
+    if (port === '5173') {
+      return `${protocol}//${hostname}:5174?token=${token}`
+    }
+    return `${protocol}//${window.location.host}/tv/?token=${token}`
   }
 
   const merged = screens.map(s => ({
