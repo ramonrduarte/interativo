@@ -6,16 +6,16 @@ fs.mkdirSync(path.join(uploadsDir, 'images'), { recursive: true })
 fs.mkdirSync(path.join(uploadsDir, 'videos'), { recursive: true })
 
 // ---------------------------------------------------------------------------
-// Knex — uses PostgreSQL in production (DATABASE_URL set), SQLite otherwise
+// Knex — PostgreSQL required (set DATABASE_URL)
 // ---------------------------------------------------------------------------
-const isPg = !!(process.env.DATABASE_URL)
+if (!process.env.DATABASE_URL) {
+  console.error('ERRO: DATABASE_URL não definida. Configure a variável de ambiente com a string de conexão PostgreSQL.')
+  process.exit(1)
+}
 
 const knex = require('knex')({
-  client:            isPg ? 'pg' : 'better-sqlite3',
-  connection:        isPg
-    ? process.env.DATABASE_URL
-    : { filename: path.join(__dirname, '../../data/interativa.db') },
-  useNullAsDefault:  true,
+  client:     'pg',
+  connection: process.env.DATABASE_URL,
   migrations: { directory: path.join(__dirname, 'migrations') },
 })
 
@@ -30,10 +30,7 @@ const JSON_FIELDS = {
   schedules:       ['days'],
 }
 
-// Fields stored as 0/1 integers in SQLite that should be JS booleans
-const BOOL_FIELDS = {
-  schedules: ['active'],
-}
+const BOOL_FIELDS = {}  // PostgreSQL handles booleans natively
 
 // ---------------------------------------------------------------------------
 // Table — async wrapper around a Knex table keeping the same API shape
@@ -95,34 +92,19 @@ class Table {
 
   async insert(data) {
     const toInsert = this._serialize({ ...data, created_at: new Date().toISOString() })
-
-    if (isPg) {
-      const [row] = await knex(this.name).insert(toInsert).returning('*')
-      return this._deserialize(row)
-    } else {
-      const [id] = await knex(this.name).insert(toInsert)
-      return this.get(id)
-    }
+    const [row] = await knex(this.name).insert(toInsert).returning('*')
+    return this._deserialize(row)
   }
 
   async update(id, data) {
-    // Drop undefined values so only provided fields are updated
     const clean = {}
     for (const [k, v] of Object.entries(data)) {
       if (v !== undefined) clean[k] = v
     }
     if (Object.keys(clean).length === 0) return this.get(id)
-
     const updates = this._serialize(clean)
-
-    if (isPg) {
-      const [row] = await knex(this.name).where({ id: Number(id) }).update(updates).returning('*')
-      return this._deserialize(row || null)
-    } else {
-      const count = await knex(this.name).where({ id: Number(id) }).update(updates)
-      if (count === 0) return null
-      return this.get(id)
-    }
+    const [row] = await knex(this.name).where({ id: Number(id) }).update(updates).returning('*')
+    return this._deserialize(row || null)
   }
 
   async remove(id) {
@@ -175,10 +157,6 @@ const allSeeds = [
 // initDb — run migrations + seed layouts. Must be awaited before server starts.
 // ---------------------------------------------------------------------------
 async function initDb() {
-  if (!isPg) {
-    fs.mkdirSync(path.join(__dirname, '../../data'), { recursive: true })
-  }
-
   await knex.migrate.latest()
 
   const existing = await db.layouts.all()
@@ -187,7 +165,7 @@ async function initDb() {
     if (!existingTemplates.has(seed.template)) await db.layouts.insert(seed)
   }
 
-  console.log(`[db] ${isPg ? 'PostgreSQL' : 'SQLite'} — migrações aplicadas`)
+  console.log('[db] PostgreSQL — migrações aplicadas')
 }
 
 module.exports = { db, initDb }
