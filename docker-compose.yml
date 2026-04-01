@@ -2,6 +2,7 @@ services:
   interativa:
     image: interativa:latest
     build: .
+    pull_policy: build
     container_name: interativa
     restart: unless-stopped
     networks:
