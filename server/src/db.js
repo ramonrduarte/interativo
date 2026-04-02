@@ -192,7 +192,7 @@ async function initDb() {
       name:          'Admin',
       email:         'admin@interativa.local',
       password_hash: hash,
-      role:          'admin',
+      role:          'superadmin',
     })
 
     // Migrate any existing rows (created before multi-tenancy) to the default company

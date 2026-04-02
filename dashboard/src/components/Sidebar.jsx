@@ -1,7 +1,7 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
 
-const links = [
+const baseLinks = [
   { to: '/control',   icon: '🎛️',  label: 'Controle ao Vivo' },
   { to: '/screens',   icon: '📺',  label: 'Telas' },
   { to: '/playlists', icon: '🎞️',  label: 'Playlists' },
@@ -11,7 +11,15 @@ const links = [
   { to: '/settings',  icon: '⚙️',  label: 'Configurações' },
 ]
 
+const superadminLinks = [
+  { to: '/companies', icon: '🏢',  label: 'Empresas' },
+]
+
 export default function Sidebar({ user, onLogout }) {
+  const links = user?.role === 'superadmin'
+    ? [...baseLinks, ...superadminLinks]
+    : baseLinks
+
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">

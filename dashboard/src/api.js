@@ -82,6 +82,11 @@ export const api = {
   updateSchedule: (id, data) => req('PUT', `/schedules/${id}`, data),
   deleteSchedule: (id) => req('DELETE', `/schedules/${id}`),
 
+  // Admin (superadmin only)
+  adminGetCompanies: () => req('GET', '/admin/companies'),
+  adminCreateCompany: (data) => req('POST', '/admin/companies', data),
+  adminDeleteCompany: (id) => req('DELETE', `/admin/companies/${id}`),
+
   // Users
   getUsers: () => req('GET', '/users'),
   createUser: (data) => req('POST', '/users', data),
