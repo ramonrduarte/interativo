@@ -26,7 +26,46 @@ async function getActivePlaylistId(screen) {
     })
     .sort((a, b) => (b.priority || 0) - (a.priority || 0))
 
-  return active.length > 0 ? active[0].playlist_id : screen.playlist_id
+  // Schedule overrides always return a single playlist_id
+  if (active.length > 0) return { type: 'single', playlist_id: active[0].playlist_id }
+
+  // No active schedule — use group or fallback to single playlist
+  if (screen.playlist_group_id) return { type: 'group', group_id: screen.playlist_group_id }
+  if (screen.playlist_id)       return { type: 'single', playlist_id: screen.playlist_id }
+  return null
+}
+
+async function getSlidesForPlaylistId(playlistId) {
+  const rawSlides = await db.playlistSlides.where(s => s.playlist_id == playlistId)
+  rawSlides.sort((a, b) => a.position - b.position)
+  const slides = []
+  for (const slide of rawSlides) {
+    const layout      = slide.layout_id ? await db.layouts.get(slide.layout_id) : null
+    const zoneContent = slide.zone_content || {}
+    const zones       = {}
+    for (const [zoneIdx, mediaId] of Object.entries(zoneContent)) {
+      if (!mediaId) continue
+      const media = await db.media.get(mediaId)
+      if (!media) continue
+      zones[Number(zoneIdx)] = {
+        type:      media.type,
+        url:       media.filename ? `/uploads/${media.filename}` : (media.url || null),
+        content:   media.content || null,
+        name:      media.name,
+        objectFit: media.object_fit || 'cover',
+      }
+    }
+    slides.push({
+      id:       slide.id,
+      duration: slide.duration || 10,
+      layout: {
+        template: layout?.template || 'fullscreen',
+        zones:    layout?.config?.zones || [{ id: 0, label: 'Principal' }],
+      },
+      zones,
+    })
+  }
+  return slides
 }
 
 // ---------------------------------------------------------------------------
@@ -36,41 +75,19 @@ async function buildPayload(screenId) {
   const screen = await db.screens.get(screenId)
   if (!screen) return null
 
-  const ticker     = screen.ticker_id ? await db.tickers.get(screen.ticker_id) : null
-  const playlistId = await getActivePlaylistId(screen)
+  const ticker      = screen.ticker_id ? await db.tickers.get(screen.ticker_id) : null
+  const playlistRef = await getActivePlaylistId(screen)
 
   const slides = []
-  if (playlistId) {
-    const rawSlides = await db.playlistSlides.where(s => s.playlist_id == playlistId)
-    rawSlides.sort((a, b) => a.position - b.position)
-
-    for (const slide of rawSlides) {
-      const layout      = slide.layout_id ? await db.layouts.get(slide.layout_id) : null
-      const zoneContent = slide.zone_content || {}
-      const zones       = {}
-
-      for (const [zoneIdx, mediaId] of Object.entries(zoneContent)) {
-        if (!mediaId) continue
-        const media = await db.media.get(mediaId)
-        if (!media) continue
-        zones[Number(zoneIdx)] = {
-          type:      media.type,
-          url:       media.filename ? `/uploads/${media.filename}` : (media.url || null),
-          content:   media.content || null,
-          name:      media.name,
-          objectFit: media.object_fit || 'cover',
-        }
+  if (playlistRef) {
+    if (playlistRef.type === 'single') {
+      slides.push(...await getSlidesForPlaylistId(playlistRef.playlist_id))
+    } else if (playlistRef.type === 'group') {
+      const items = await db.playlistGroupItems.where(i => i.group_id == playlistRef.group_id)
+      items.sort((a, b) => a.position - b.position)
+      for (const item of items) {
+        slides.push(...await getSlidesForPlaylistId(item.playlist_id))
       }
-
-      slides.push({
-        id:       slide.id,
-        duration: slide.duration || 10,
-        layout: {
-          template: layout?.template || 'fullscreen',
-          zones:    layout?.config?.zones || [{ id: 0, label: 'Principal' }],
-        },
-        zones,
-      })
     }
   }
 

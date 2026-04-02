@@ -1,7 +1,10 @@
 const express    = require('express')
 const bcrypt     = require('bcryptjs')
+const jwt        = require('jsonwebtoken')
 const { db }     = require('../db')
 const requireSuperadmin = require('../middleware/superadmin')
+
+const SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-prod'
 
 const router = express.Router()
 router.use(requireSuperadmin)
@@ -74,6 +77,29 @@ router.delete('/companies/:id', async (req, res) => {
     await db.companies.remove(companyId)
 
     res.json({ ok: true })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// Superadmin impersonates a company — returns a scoped token
+router.post('/impersonate/:companyId', async (req, res) => {
+  try {
+    const company = await db.companies.get(req.params.companyId)
+    if (!company) return res.status(404).json({ error: 'Empresa não encontrada' })
+
+    const token = jwt.sign(
+      {
+        id:                    req.user.id,
+        company_id:            company.id,
+        email:                 req.user.email,
+        name:                  req.user.name,
+        role:                  req.user.role,       // still superadmin
+        impersonating_company: company.id,
+        impersonating_name:    company.name,
+      },
+      SECRET,
+      { expiresIn: '8h' }
+    )
+    res.json({ token, company })
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 

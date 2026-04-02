@@ -21,15 +21,17 @@ const knex = require('knex')({
 
 // Fields that are serialized as JSON strings in the database
 const JSON_FIELDS = {
-  layouts:         ['config'],
-  media:           ['content'],
-  playlists:       [],
-  playlist_slides: ['zone_content'],
-  tickers:         ['messages'],
-  screens:         [],
-  schedules:       ['days'],
-  companies:       [],
-  users:           [],
+  layouts:               ['config'],
+  media:                 ['content'],
+  playlists:             [],
+  playlist_slides:       ['zone_content'],
+  tickers:               ['messages'],
+  screens:               [],
+  schedules:             ['days'],
+  companies:             [],
+  users:                 [],
+  playlist_groups:       [],
+  playlist_group_items:  [],
 }
 
 const BOOL_FIELDS = {}  // PostgreSQL handles booleans natively
@@ -143,8 +145,10 @@ const db = {
   tickers:        new Table('tickers'),
   screens:        new Table('screens'),
   schedules:      new Table('schedules'),
-  companies:      new Table('companies'),
-  users:          new Table('users'),
+  companies:           new Table('companies'),
+  users:               new Table('users'),
+  playlistGroups:      new Table('playlist_groups'),
+  playlistGroupItems:  new Table('playlist_group_items'),
 }
 
 // ---------------------------------------------------------------------------

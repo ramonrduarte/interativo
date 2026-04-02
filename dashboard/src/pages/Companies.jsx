@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { api } from '../api.js'
 
-export default function Companies() {
+export default function Companies({ onImpersonate }) {
   const [companies, setCompanies]   = useState([])
   const [modal, setModal]           = useState(false)
   const [expanded, setExpanded]     = useState(null) // company id
@@ -34,6 +34,13 @@ export default function Companies() {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleImpersonate(company) {
+    try {
+      const { token } = await api.adminImpersonate(company.id)
+      onImpersonate(token)
+    } catch (e) { alert(e.message) }
   }
 
   async function handleDelete(company) {
@@ -70,6 +77,12 @@ export default function Companies() {
                 onClick={() => setExpanded(expanded === c.id ? null : c.id)}
               >
                 {expanded === c.id ? 'Ocultar usuários' : 'Ver usuários'}
+              </button>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => handleImpersonate(c)}
+              >
+                Acessar
               </button>
               <button
                 className="btn btn-secondary btn-sm"

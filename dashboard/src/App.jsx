@@ -10,6 +10,7 @@ import Schedules from './pages/Schedules.jsx'
 import Login from './pages/Login.jsx'
 import Settings from './pages/Settings.jsx'
 import Companies from './pages/Companies.jsx'
+import PlaylistGroups from './pages/PlaylistGroups.jsx'
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null } }
@@ -31,23 +32,32 @@ class ErrorBoundary extends React.Component {
 }
 
 export default function App() {
+  function decodeUser(token) {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      if (payload.exp && payload.exp * 1000 < Date.now()) return null
+      return {
+        id:                    payload.id,
+        name:                  payload.name,
+        email:                 payload.email,
+        role:                  payload.role,
+        company_id:            payload.company_id,
+        impersonating_company: payload.impersonating_company || null,
+        impersonating_name:    payload.impersonating_name    || null,
+      }
+    } catch { return null }
+  }
+
   const [user, setUser] = useState(() => {
     const token = localStorage.getItem('auth_token')
     if (!token) return null
-    try {
-      // Decode payload from JWT (no signature verification — server will verify on each request)
-      const payload = JSON.parse(atob(token.split('.')[1]))
-      // Check expiry
-      if (payload.exp && payload.exp * 1000 < Date.now()) {
-        localStorage.removeItem('auth_token')
-        return null
-      }
-      return { id: payload.id, name: payload.name, email: payload.email, role: payload.role, company_id: payload.company_id }
-    } catch {
-      localStorage.removeItem('auth_token')
-      return null
-    }
+    const u = decodeUser(token)
+    if (!u) { localStorage.removeItem('auth_token'); return null }
+    return u
   })
+
+  // Real (superadmin) token stored separately during impersonation
+  const [realToken, setRealToken] = useState(null)
 
   function handleLogin(userData) {
     setUser(userData)
@@ -55,7 +65,22 @@ export default function App() {
 
   function handleLogout() {
     localStorage.removeItem('auth_token')
+    setRealToken(null)
     setUser(null)
+  }
+
+  function handleImpersonate(token) {
+    // Save real token before switching
+    setRealToken(localStorage.getItem('auth_token'))
+    localStorage.setItem('auth_token', token)
+    setUser(decodeUser(token))
+  }
+
+  function handleExitImpersonation() {
+    if (!realToken) return
+    localStorage.setItem('auth_token', realToken)
+    setUser(decodeUser(realToken))
+    setRealToken(null)
   }
 
   if (!user) {
@@ -64,7 +89,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <Sidebar user={user} onLogout={handleLogout} />
+      <Sidebar user={user} onLogout={handleLogout} onExitImpersonation={handleExitImpersonation} />
       <main className="main-content">
         <ErrorBoundary>
           <Routes>
@@ -76,7 +101,8 @@ export default function App() {
             <Route path="/tickers" element={<Tickers />} />
             <Route path="/schedules" element={<Schedules />} />
             <Route path="/settings" element={<Settings user={user} />} />
-            <Route path="/companies" element={<Companies />} />
+            <Route path="/companies" element={<Companies onImpersonate={handleImpersonate} />} />
+            <Route path="/playlist-groups" element={<PlaylistGroups />} />
           </Routes>
         </ErrorBoundary>
       </main>

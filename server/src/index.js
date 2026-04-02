@@ -58,7 +58,8 @@ async function main() {
     res.json(list)
   })
 
-  app.use('/api/admin',     require('./routes/admin'))
+  app.use('/api/admin',          require('./routes/admin'))
+  app.use('/api/playlist-groups', require('./routes/playlist_groups')())
   app.use('/api/users',     require('./routes/users'))
   app.use('/api/content',   require('./routes/content')(io))
   app.use('/api/layouts',   require('./routes/layouts'))

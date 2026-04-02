@@ -86,6 +86,16 @@ export const api = {
   adminGetCompanies: () => req('GET', '/admin/companies'),
   adminCreateCompany: (data) => req('POST', '/admin/companies', data),
   adminDeleteCompany: (id) => req('DELETE', `/admin/companies/${id}`),
+  adminImpersonate: (companyId) => req('POST', `/admin/impersonate/${companyId}`),
+
+  // Playlist Groups
+  getPlaylistGroups: () => req('GET', '/playlist-groups'),
+  createPlaylistGroup: (data) => req('POST', '/playlist-groups', data),
+  updatePlaylistGroup: (id, data) => req('PUT', `/playlist-groups/${id}`, data),
+  deletePlaylistGroup: (id) => req('DELETE', `/playlist-groups/${id}`),
+  addPlaylistToGroup: (groupId, playlist_id) => req('POST', `/playlist-groups/${groupId}/playlists`, { playlist_id }),
+  removePlaylistFromGroup: (groupId, itemId) => req('DELETE', `/playlist-groups/${groupId}/playlists/${itemId}`),
+  reorderPlaylistGroup: (groupId, items) => req('PUT', `/playlist-groups/${groupId}/playlists/reorder`, { items }),
 
   // Users
   getUsers: () => req('GET', '/users'),
