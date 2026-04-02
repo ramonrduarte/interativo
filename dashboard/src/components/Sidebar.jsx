@@ -1,7 +1,7 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
 
-const baseLinks = [
+const companyLinks = [
   { to: '/control',         icon: '🎛️',  label: 'Controle ao Vivo' },
   { to: '/screens',         icon: '📺',  label: 'Telas' },
   { to: '/playlist-groups', icon: '📋',  label: 'Grupos de Playlists' },
@@ -14,13 +14,16 @@ const baseLinks = [
 
 const superadminLinks = [
   { to: '/companies', icon: '🏢', label: 'Empresas' },
+  { to: '/settings',  icon: '⚙️', label: 'Configurações' },
 ]
 
 export default function Sidebar({ user, onLogout, onExitImpersonation }) {
   const isImpersonating = !!user?.impersonating_company
-  const links = (user?.role === 'superadmin' && !isImpersonating)
-    ? [...baseLinks, ...superadminLinks]
-    : baseLinks
+  const isSuperadminHome = user?.role === 'superadmin' && !isImpersonating
+
+  // Superadmin sem impersonation: só vê Empresas + Configurações
+  // Qualquer outro caso (admin normal ou superadmin dentro de uma empresa): vê tudo
+  const links = isSuperadminHome ? superadminLinks : companyLinks
 
   return (
     <aside className="sidebar">

@@ -93,7 +93,9 @@ export default function App() {
       <main className="main-content">
         <ErrorBoundary>
           <Routes>
-            <Route path="/" element={<Navigate to="/control" replace />} />
+            <Route path="/" element={
+              <Navigate to={user?.role === 'superadmin' && !user?.impersonating_company ? '/companies' : '/control'} replace />
+            } />
             <Route path="/control" element={<Control />} />
             <Route path="/screens" element={<Screens />} />
             <Route path="/playlists" element={<Playlists />} />
