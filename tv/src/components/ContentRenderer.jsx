@@ -44,12 +44,35 @@ function VideoContent({ item }) {
 }
 
 function YoutubeContent({ item }) {
+  // Normalize to youtube-nocookie.com (fewer embed restrictions) and ensure needed params
+  const src = React.useMemo(() => {
+    try {
+      const url = new URL(item.url)
+      // Switch to nocookie domain
+      url.hostname = 'www.youtube-nocookie.com'
+      // Ensure essential params
+      url.searchParams.set('autoplay', '1')
+      url.searchParams.set('mute', '1')
+      if (!url.searchParams.has('loop')) url.searchParams.set('loop', '1')
+      url.searchParams.set('controls', '0')
+      url.searchParams.set('rel', '0')
+      url.searchParams.set('modestbranding', '1')
+      url.searchParams.set('iv_load_policy', '3')
+      url.searchParams.set('enablejsapi', '1')
+      return url.toString()
+    } catch {
+      return item.url
+    }
+  }, [item.url])
+
   return (
     <iframe
       className="content-iframe"
-      src={item.url}
-      allow="autoplay; encrypted-media"
+      src={src}
+      allow="autoplay; fullscreen; accelerometer; gyroscope; encrypted-media; picture-in-picture"
       allowFullScreen
+      frameBorder="0"
+      referrerPolicy="strict-origin-when-cross-origin"
     />
   )
 }

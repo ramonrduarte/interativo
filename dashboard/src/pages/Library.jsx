@@ -62,7 +62,7 @@ export default function Library() {
       if (type === 'youtube') {
         const vid = extractYoutubeId(form.url)
         if (!vid) throw new Error('URL do YouTube inválida')
-        payload.url = `https://www.youtube.com/embed/${vid}?autoplay=1&mute=1&loop=1&controls=0&playlist=${vid}`
+        payload.url = `https://www.youtube-nocookie.com/embed/${vid}?autoplay=1&mute=1&loop=1&controls=0&playlist=${vid}&rel=0&modestbranding=1&iv_load_policy=3&enablejsapi=1`
         payload.name = form.name || 'YouTube: ' + vid
       } else if (type === 'webpage') {
         payload.url = form.url
