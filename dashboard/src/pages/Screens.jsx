@@ -1,18 +1,17 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { api } from '../api.js'
 
-const EMPTY_FORM = { name: '', playlist_id: '', ticker_id: '', orientation: 'landscape' }
+const EMPTY_FORM = { name: '', playlist_group_id: '', playlist_id: '', ticker_id: '', orientation: 'landscape' }
 
 // ── Pairing Modal ──────────────────────────────────────────────────────────
 function PairModal({ screens, onClose }) {
   const [code, setCode]         = useState('')
   const [screenId, setScreenId] = useState('')
   const [waiting, setWaiting]   = useState([])
-  const [status, setStatus]     = useState(null) // null | 'ok' | 'error'
+  const [status, setStatus]     = useState(null)
   const [msg, setMsg]           = useState('')
   const pollRef = useRef(null)
 
-  // Poll for TVs in pairing mode
   useEffect(() => {
     async function poll() {
       try { setWaiting(await api.getPairingWaiting()) } catch {}
@@ -44,7 +43,7 @@ function PairModal({ screens, onClose }) {
         </div>
         <div className="modal-body">
           <p className="text-sm text-muted" style={{ marginBottom: 16 }}>
-            Abra <strong>http://[IP-DO-SERVIDOR]:5174</strong> na TV. Ela exibirá um código de 6 caracteres.
+            Abra o app na TV. Ela exibirá um código de 6 caracteres.
           </p>
 
           {waiting.length > 0 && (
@@ -107,18 +106,21 @@ function PairModal({ screens, onClose }) {
 }
 
 export default function Screens() {
-  const [screens, setScreens]     = useState([])
-  const [playlists, setPlaylists] = useState([])
-  const [tickers, setTickers]     = useState([])
-  const [modal, setModal]         = useState(null) // null | 'create' | screenObj
-  const [showPair, setShowPair]   = useState(false)
-  const [form, setForm]           = useState(EMPTY_FORM)
-  const [loading, setLoading]     = useState(false)
+  const [screens, setScreens]         = useState([])
+  const [playlists, setPlaylists]     = useState([])
+  const [groups, setGroups]           = useState([])
+  const [tickers, setTickers]         = useState([])
+  const [modal, setModal]             = useState(null)
+  const [showPair, setShowPair]       = useState(false)
+  const [form, setForm]               = useState(EMPTY_FORM)
+  const [loading, setLoading]         = useState(false)
 
   async function load() {
     try {
-      const [s, p, t] = await Promise.all([api.getScreens(), api.getPlaylists(), api.getTickers()])
-      setScreens(s); setPlaylists(p); setTickers(t)
+      const [s, p, g, t] = await Promise.all([
+        api.getScreens(), api.getPlaylists(), api.getPlaylistGroups(), api.getTickers(),
+      ])
+      setScreens(s); setPlaylists(p); setGroups(g); setTickers(t)
     } catch (e) { console.error('Erro ao carregar:', e) }
   }
 
@@ -127,7 +129,13 @@ export default function Screens() {
   function openCreate() { setForm(EMPTY_FORM); setModal('create') }
 
   function openEdit(s) {
-    setForm({ name: s.name, playlist_id: s.playlist_id || '', ticker_id: s.ticker_id || '', orientation: s.orientation || 'landscape' })
+    setForm({
+      name:              s.name,
+      playlist_group_id: s.playlist_group_id || '',
+      playlist_id:       s.playlist_id       || '',
+      ticker_id:         s.ticker_id         || '',
+      orientation:       s.orientation       || 'landscape',
+    })
     setModal(s)
   }
 
@@ -138,10 +146,11 @@ export default function Screens() {
     setLoading(true)
     try {
       const payload = {
-        name: form.name,
-        playlist_id: form.playlist_id || null,
-        ticker_id: form.ticker_id || null,
-        orientation: form.orientation || 'landscape',
+        name:              form.name,
+        playlist_group_id: form.playlist_group_id || null,
+        playlist_id:       form.playlist_group_id ? null : (form.playlist_id || null),
+        ticker_id:         form.ticker_id         || null,
+        orientation:       form.orientation       || 'landscape',
       }
       if (modal === 'create') await api.createScreen(payload)
       else await api.updateScreen(modal.id, payload)
@@ -157,8 +166,10 @@ export default function Screens() {
     load()
   }
 
-  function getTvUrl(token) {
-    return `${window.location.protocol}//${window.location.hostname}:5174?token=${token}`
+  function getContentLabel(s) {
+    if (s.playlist_group_name) return { label: s.playlist_group_name, type: 'group' }
+    if (s.playlist_name)       return { label: s.playlist_name,       type: 'playlist' }
+    return null
   }
 
   return (
@@ -186,7 +197,7 @@ export default function Screens() {
               <tr>
                 <th>Nome</th>
                 <th>Orientação</th>
-                <th>Playlist</th>
+                <th>Conteúdo</th>
                 <th>Slides</th>
                 <th>Ticker</th>
                 <th>Status</th>
@@ -194,41 +205,44 @@ export default function Screens() {
               </tr>
             </thead>
             <tbody>
-              {screens.map(s => (
-                <tr key={s.id}>
-                  <td>
-                    <div style={{ fontWeight: 500 }}>{s.name}</div>
-                    <div className="text-sm text-muted" style={{ fontFamily: 'monospace' }}>{s.token?.slice(0, 8)}…</div>
-                  </td>
-                  <td>
-                    <span title={s.orientation === 'portrait' ? 'Vertical' : 'Horizontal'}>
+              {screens.map(s => {
+                const content = getContentLabel(s)
+                return (
+                  <tr key={s.id}>
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{s.name}</div>
+                      <div className="text-sm text-muted" style={{ fontFamily: 'monospace' }}>{s.token?.slice(0, 8)}…</div>
+                    </td>
+                    <td>
                       {s.orientation === 'portrait' ? '📱 Vertical' : '🖥️ Horizontal'}
-                    </span>
-                  </td>
-                  <td><span className="badge badge-blue">{s.playlist_name || '—'}</span></td>
-                  <td>
-                    {s.slide_count > 0
-                      ? <span className="badge badge-success">{s.slide_count} slide{s.slide_count > 1 ? 's' : ''}</span>
-                      : <span className="text-muted">—</span>}
-                  </td>
-                  <td>{s.ticker_name || <span className="text-muted">—</span>}</td>
-                  <td>
-                    <span className={`badge ${s.online ? 'badge-success' : 'badge-gray'}`}>
-                      {s.online ? 'Online' : 'Offline'}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="table-actions">
-                      <button className="btn btn-secondary btn-sm" onClick={() => openEdit(s)}>Editar</button>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => navigator.clipboard.writeText(getTvUrl(s.token)).then(() => alert('URL copiada!'))}
-                      >URL TV</button>
-                      <button className="btn btn-danger btn-sm" onClick={() => handleDelete(s)}>✕</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td>
+                      {content
+                        ? <span className={`badge ${content.type === 'group' ? 'badge-blue' : 'badge-gray'}`}>
+                            {content.type === 'group' ? '📋 ' : ''}{content.label}
+                          </span>
+                        : <span className="text-muted">—</span>}
+                    </td>
+                    <td>
+                      {s.slide_count > 0
+                        ? <span className="badge badge-success">{s.slide_count} slide{s.slide_count > 1 ? 's' : ''}</span>
+                        : <span className="text-muted">—</span>}
+                    </td>
+                    <td>{s.ticker_name || <span className="text-muted">—</span>}</td>
+                    <td>
+                      <span className={`badge ${s.online ? 'badge-success' : 'badge-gray'}`}>
+                        {s.online ? 'Online' : 'Offline'}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="table-actions">
+                        <button className="btn btn-secondary btn-sm" onClick={() => openEdit(s)}>Editar</button>
+                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(s)}>✕</button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -279,18 +293,43 @@ export default function Screens() {
                 </div>
               </div>
 
+              {/* Grupo de Playlists — opção preferencial */}
               <div className="form-group">
-                <label className="form-label">Playlist</label>
+                <label className="form-label">
+                  Grupo de Playlists
+                  <span className="badge badge-blue" style={{ marginLeft: 8, fontSize: 10 }}>Recomendado</span>
+                </label>
                 <select
                   className="form-control"
-                  value={form.playlist_id}
-                  onChange={e => setForm(f => ({ ...f, playlist_id: e.target.value }))}
+                  value={form.playlist_group_id}
+                  onChange={e => setForm(f => ({ ...f, playlist_group_id: e.target.value, playlist_id: '' }))}
                 >
-                  <option value="">— Nenhuma —</option>
-                  {playlists.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  <option value="">— Nenhum —</option>
+                  {groups.map(g => (
+                    <option key={g.id} value={g.id}>
+                      {g.name} ({g.playlists?.length || 0} playlists)
+                    </option>
+                  ))}
                 </select>
-                <small className="text-muted">Cada slide da playlist define seu próprio layout e conteúdo.</small>
+                <small className="text-muted">
+                  Exibe todas as playlists do grupo em sequência. Ideal para combinar uma programação padrão com outras.
+                </small>
               </div>
+
+              {/* Playlist avulsa — só aparece se não houver grupo selecionado */}
+              {!form.playlist_group_id && (
+                <div className="form-group">
+                  <label className="form-label">Ou selecione uma Playlist avulsa</label>
+                  <select
+                    className="form-control"
+                    value={form.playlist_id}
+                    onChange={e => setForm(f => ({ ...f, playlist_id: e.target.value }))}
+                  >
+                    <option value="">— Nenhuma —</option>
+                    {playlists.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+              )}
 
               <div className="form-group">
                 <label className="form-label">Ticker no rodapé</label>
@@ -304,17 +343,6 @@ export default function Screens() {
                 </select>
               </div>
 
-              {modal !== 'create' && (
-                <div className="form-group">
-                  <label className="form-label">URL para abrir no navegador da TV:</label>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <input className="form-control" readOnly value={getTvUrl(modal.token)} style={{ fontSize: 12 }} />
-                    <button className="btn btn-secondary" onClick={() => navigator.clipboard.writeText(getTvUrl(modal.token))}>
-                      Copiar
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={closeModal}>Cancelar</button>
