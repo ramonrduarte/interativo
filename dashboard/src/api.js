@@ -82,6 +82,11 @@ export const api = {
   updateSchedule: (id, data) => req('PUT', `/schedules/${id}`, data),
   deleteSchedule: (id) => req('DELETE', `/schedules/${id}`),
 
+  // Users
+  getUsers: () => req('GET', '/users'),
+  createUser: (data) => req('POST', '/users', data),
+  deleteUser: (id) => req('DELETE', `/users/${id}`),
+
   // Status
   getStatus: () => req('GET', '/status'),
 }

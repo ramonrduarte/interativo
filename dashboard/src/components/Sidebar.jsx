@@ -8,6 +8,7 @@ const links = [
   { to: '/schedules', icon: '📅',  label: 'Agendamentos' },
   { to: '/library',   icon: '🖼️',  label: 'Biblioteca' },
   { to: '/tickers',   icon: '📰',  label: 'Tickers' },
+  { to: '/settings',  icon: '⚙️',  label: 'Configurações' },
 ]
 
 export default function Sidebar({ user, onLogout }) {

@@ -8,6 +8,7 @@ import Tickers from './pages/Tickers.jsx'
 import Control from './pages/Control.jsx'
 import Schedules from './pages/Schedules.jsx'
 import Login from './pages/Login.jsx'
+import Settings from './pages/Settings.jsx'
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null } }
@@ -73,6 +74,7 @@ export default function App() {
             <Route path="/library" element={<Library />} />
             <Route path="/tickers" element={<Tickers />} />
             <Route path="/schedules" element={<Schedules />} />
+            <Route path="/settings" element={<Settings user={user} />} />
           </Routes>
         </ErrorBoundary>
       </main>
