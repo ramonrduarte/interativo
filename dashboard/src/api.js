@@ -1,11 +1,27 @@
 const BASE = '/api'
 
+function getToken() {
+  return localStorage.getItem('auth_token')
+}
+
 async function req(method, path, body) {
+  const token = getToken()
+  const headers = {}
+  if (!(body instanceof FormData)) headers['Content-Type'] = 'application/json'
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
   const res = await fetch(BASE + path, {
     method,
-    headers: body instanceof FormData ? {} : { 'Content-Type': 'application/json' },
+    headers,
     body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
   })
+
+  if (res.status === 401) {
+    localStorage.removeItem('auth_token')
+    window.location.reload()
+    throw new Error('Sessão expirada')
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error(err.error || res.statusText)
@@ -14,6 +30,11 @@ async function req(method, path, body) {
 }
 
 export const api = {
+  // Auth
+  login: (email, password) => req('POST', '/auth/login', { email, password }),
+  me: () => req('GET', '/auth/me'),
+  changePassword: (current_password, new_password) => req('PUT', '/auth/me/password', { current_password, new_password }),
+
   // Content/Media
   getContent: () => req('GET', '/content'),
   uploadFile: (formData) => req('POST', '/content/upload', formData),

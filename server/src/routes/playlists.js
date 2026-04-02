@@ -10,8 +10,10 @@ module.exports = function playlistRoutes(_io) {
     for (const s of screens) await pushToScreen(s.id)
   }
 
-  async function getPlaylistWithSlides(id) {
-    const playlist = await db.playlists.get(id)
+  async function getPlaylistWithSlides(id, companyId) {
+    const playlist = companyId
+      ? await db.playlists.findByIdAndCompany(id, companyId)
+      : await db.playlists.get(id)
     if (!playlist) return null
     const allSlides = await db.playlistSlides.where(s => s.playlist_id == id)
     const slides = await Promise.all(
@@ -36,9 +38,9 @@ module.exports = function playlistRoutes(_io) {
     return { ...playlist, slides }
   }
 
-  router.get('/', async (_req, res) => {
+  router.get('/', async (req, res) => {
     try {
-      const playlists = await db.playlists.all()
+      const playlists = await db.playlists.allForCompany(req.user.company_id)
       res.json(playlists.sort((a, b) => b.created_at.localeCompare(a.created_at)))
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
@@ -47,13 +49,13 @@ module.exports = function playlistRoutes(_io) {
     try {
       const { name, description } = req.body
       if (!name) return res.status(400).json({ error: 'name é obrigatório' })
-      res.json(await db.playlists.insert({ name, description: description || null }))
+      res.json(await db.playlists.insert({ name, description: description || null, company_id: req.user.company_id }))
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
   router.get('/:id', async (req, res) => {
     try {
-      const p = await getPlaylistWithSlides(req.params.id)
+      const p = await getPlaylistWithSlides(req.params.id, req.user.company_id)
       if (!p) return res.status(404).json({ error: 'Não encontrado' })
       res.json(p)
     } catch (e) { res.status(500).json({ error: e.message }) }
@@ -61,15 +63,18 @@ module.exports = function playlistRoutes(_io) {
 
   router.put('/:id', async (req, res) => {
     try {
+      const existing = await db.playlists.findByIdAndCompany(req.params.id, req.user.company_id)
+      if (!existing) return res.status(404).json({ error: 'Não encontrado' })
       const { name, description } = req.body
       const row = await db.playlists.update(req.params.id, { name, description: description || null })
-      if (!row) return res.status(404).json({ error: 'Não encontrado' })
       res.json(row)
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
   router.delete('/:id', async (req, res) => {
     try {
+      const existing = await db.playlists.findByIdAndCompany(req.params.id, req.user.company_id)
+      if (!existing) return res.status(404).json({ error: 'Não encontrado' })
       await db.playlistSlides.removeWhere(s => s.playlist_id == req.params.id)
       await db.playlists.remove(req.params.id)
       res.json({ ok: true })
@@ -78,9 +83,11 @@ module.exports = function playlistRoutes(_io) {
 
   router.post('/:id/slides', async (req, res) => {
     try {
+      const existing = await db.playlists.findByIdAndCompany(req.params.id, req.user.company_id)
+      if (!existing) return res.status(404).json({ error: 'Não encontrado' })
       const { layout_id, zone_content = {}, duration = 10 } = req.body
-      const existing = await db.playlistSlides.where(s => s.playlist_id == req.params.id)
-      const maxPos   = existing.length > 0 ? Math.max(...existing.map(s => s.position)) : -1
+      const slides = await db.playlistSlides.where(s => s.playlist_id == req.params.id)
+      const maxPos = slides.length > 0 ? Math.max(...slides.map(s => s.position)) : -1
       const slide = await db.playlistSlides.insert({
         playlist_id: Number(req.params.id),
         layout_id:   layout_id ? Number(layout_id) : null,
@@ -96,6 +103,8 @@ module.exports = function playlistRoutes(_io) {
   // PUT reorder — must come before /:slideId
   router.put('/:id/slides/reorder', async (req, res) => {
     try {
+      const existing = await db.playlists.findByIdAndCompany(req.params.id, req.user.company_id)
+      if (!existing) return res.status(404).json({ error: 'Não encontrado' })
       const { slides } = req.body
       if (!Array.isArray(slides)) return res.status(400).json({ error: 'slides deve ser array' })
       for (const s of slides) await db.playlistSlides.update(s.id, { position: s.position })
@@ -106,6 +115,8 @@ module.exports = function playlistRoutes(_io) {
 
   router.put('/:id/slides/:slideId', async (req, res) => {
     try {
+      const existing = await db.playlists.findByIdAndCompany(req.params.id, req.user.company_id)
+      if (!existing) return res.status(404).json({ error: 'Não encontrado' })
       const { layout_id, zone_content, duration } = req.body
       const slide = await db.playlistSlides.get(req.params.slideId)
       if (!slide || slide.playlist_id != req.params.id) return res.status(404).json({ error: 'Slide não encontrado' })
@@ -121,6 +132,8 @@ module.exports = function playlistRoutes(_io) {
 
   router.delete('/:id/slides/:slideId', async (req, res) => {
     try {
+      const existing = await db.playlists.findByIdAndCompany(req.params.id, req.user.company_id)
+      if (!existing) return res.status(404).json({ error: 'Não encontrado' })
       const slide = await db.playlistSlides.get(req.params.slideId)
       if (!slide || slide.playlist_id != req.params.id) return res.status(404).json({ error: 'Slide não encontrado' })
       await db.playlistSlides.remove(req.params.slideId)

@@ -28,6 +28,8 @@ const JSON_FIELDS = {
   tickers:         ['messages'],
   screens:         [],
   schedules:       ['days'],
+  companies:       [],
+  users:           [],
 }
 
 const BOOL_FIELDS = {}  // PostgreSQL handles booleans natively
@@ -73,8 +75,18 @@ class Table {
     return rows.map(r => this._deserialize(r))
   }
 
+  async allForCompany(companyId) {
+    const rows = await knex(this.name).select('*').where({ company_id: companyId }).orderBy('id')
+    return rows.map(r => this._deserialize(r))
+  }
+
   async get(id) {
     const row = await knex(this.name).where({ id: Number(id) }).first()
+    return this._deserialize(row || null)
+  }
+
+  async findByIdAndCompany(id, companyId) {
+    const row = await knex(this.name).where({ id: Number(id), company_id: companyId }).first()
     return this._deserialize(row || null)
   }
 
@@ -131,6 +143,8 @@ const db = {
   tickers:        new Table('tickers'),
   screens:        new Table('screens'),
   schedules:      new Table('schedules'),
+  companies:      new Table('companies'),
+  users:          new Table('users'),
 }
 
 // ---------------------------------------------------------------------------
@@ -154,15 +168,42 @@ const allSeeds = [
 ]
 
 // ---------------------------------------------------------------------------
-// initDb — run migrations + seed layouts. Must be awaited before server starts.
+// initDb — run migrations + seed layouts + seed default company/user.
+// Must be awaited before server starts.
 // ---------------------------------------------------------------------------
 async function initDb() {
   await knex.migrate.latest()
 
+  // Seed layout templates
   const existing = await db.layouts.all()
   const existingTemplates = new Set(existing.map(l => l.template))
   for (const seed of allSeeds) {
     if (!existingTemplates.has(seed.template)) await db.layouts.insert(seed)
+  }
+
+  // Seed default company + admin user (only on first boot)
+  const companies = await db.companies.all()
+  if (companies.length === 0) {
+    const bcrypt = require('bcryptjs')
+    const company = await db.companies.insert({ name: 'Principal' })
+    const hash = await bcrypt.hash('admin123', 10)
+    await db.users.insert({
+      company_id:    company.id,
+      name:          'Admin',
+      email:         'admin@interativa.local',
+      password_hash: hash,
+      role:          'admin',
+    })
+
+    // Migrate any existing rows (created before multi-tenancy) to the default company
+    const tables = ['media', 'playlists', 'tickers', 'screens', 'schedules']
+    for (const table of tables) {
+      await knex(table).whereNull('company_id').update({ company_id: company.id })
+    }
+
+    console.log('[db] Empresa e usuário padrão criados')
+    console.log('[db]   Email: admin@interativa.local')
+    console.log('[db]   Senha: admin123  ← TROQUE após o primeiro login')
   }
 
   console.log('[db] PostgreSQL — migrações aplicadas')

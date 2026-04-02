@@ -29,9 +29,9 @@ const upload = multer({
 module.exports = function contentRoutes(_io) {
   const router = express.Router()
 
-  router.get('/', async (_req, res) => {
+  router.get('/', async (req, res) => {
     try {
-      const items = await db.media.all()
+      const items = await db.media.allForCompany(req.user.company_id)
       res.json(items.sort((a, b) => b.created_at.localeCompare(a.created_at)))
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
@@ -44,7 +44,10 @@ module.exports = function contentRoutes(_io) {
       const type     = req.file.mimetype.startsWith('image/') ? 'image' : 'video'
       const name     = (req.body.name || req.file.originalname).replace(/\.[^.]+$/, '')
       const object_fit = req.body.object_fit || 'cover'
-      res.json(await db.media.insert({ name, type, filename, mime_type: req.file.mimetype, file_size: req.file.size, object_fit }))
+      res.json(await db.media.insert({
+        name, type, filename, mime_type: req.file.mimetype, file_size: req.file.size,
+        object_fit, company_id: req.user.company_id,
+      }))
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
@@ -52,24 +55,25 @@ module.exports = function contentRoutes(_io) {
     try {
       const { name, type, url, content } = req.body
       if (!name || !type) return res.status(400).json({ error: 'name e type são obrigatórios' })
-      res.json(await db.media.insert({ name, type, url: url || null, content: content || null }))
+      res.json(await db.media.insert({ name, type, url: url || null, content: content || null, company_id: req.user.company_id }))
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
   router.put('/:id', async (req, res) => {
     try {
+      const item = await db.media.findByIdAndCompany(req.params.id, req.user.company_id)
+      if (!item) return res.status(404).json({ error: 'Não encontrado' })
       const { name, url, content, object_fit } = req.body
       const updates = { name, url: url || null, content: content || null }
       if (object_fit) updates.object_fit = object_fit
       const row = await db.media.update(req.params.id, updates)
-      if (!row) return res.status(404).json({ error: 'Não encontrado' })
       res.json(row)
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
   router.delete('/:id', async (req, res) => {
     try {
-      const item = await db.media.get(req.params.id)
+      const item = await db.media.findByIdAndCompany(req.params.id, req.user.company_id)
       if (!item) return res.status(404).json({ error: 'Não encontrado' })
       if (item.filename) {
         try { fs.unlinkSync(path.join(uploadsDir, item.filename)) } catch (_) {}

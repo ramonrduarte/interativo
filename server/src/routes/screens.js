@@ -19,9 +19,9 @@ module.exports = function screenRoutes(_io) {
     }
   }
 
-  router.get('/', async (_req, res) => {
+  router.get('/', async (req, res) => {
     try {
-      const screens = await db.screens.all()
+      const screens = await db.screens.allForCompany(req.user.company_id)
       const enriched = await Promise.all(screens.map(enrichScreen))
       res.json(enriched.sort((a, b) => b.created_at.localeCompare(a.created_at)))
     } catch (e) { res.status(500).json({ error: e.message }) }
@@ -37,6 +37,7 @@ module.exports = function screenRoutes(_io) {
         playlist_id: playlist_id ? Number(playlist_id) : null,
         ticker_id:   ticker_id   ? Number(ticker_id)   : null,
         orientation: orientation || 'landscape',
+        company_id:  req.user.company_id,
       })
       res.json(await enrichScreen(screen))
     } catch (e) { res.status(500).json({ error: e.message }) }
@@ -44,7 +45,7 @@ module.exports = function screenRoutes(_io) {
 
   router.get('/:id', async (req, res) => {
     try {
-      const s = await db.screens.get(req.params.id)
+      const s = await db.screens.findByIdAndCompany(req.params.id, req.user.company_id)
       if (!s) return res.status(404).json({ error: 'Não encontrado' })
       res.json(await enrichScreen(s))
     } catch (e) { res.status(500).json({ error: e.message }) }
@@ -52,6 +53,8 @@ module.exports = function screenRoutes(_io) {
 
   router.put('/:id', async (req, res) => {
     try {
+      const existing = await db.screens.findByIdAndCompany(req.params.id, req.user.company_id)
+      if (!existing) return res.status(404).json({ error: 'Não encontrado' })
       const { name, playlist_id, ticker_id, orientation } = req.body
       const s = await db.screens.update(req.params.id, {
         name,
@@ -59,7 +62,6 @@ module.exports = function screenRoutes(_io) {
         ticker_id:   ticker_id   ? Number(ticker_id)   : null,
         orientation: orientation || 'landscape',
       })
-      if (!s) return res.status(404).json({ error: 'Não encontrado' })
       await pushToScreen(Number(req.params.id))
       res.json(await enrichScreen(s))
     } catch (e) { res.status(500).json({ error: e.message }) }
@@ -67,6 +69,8 @@ module.exports = function screenRoutes(_io) {
 
   router.delete('/:id', async (req, res) => {
     try {
+      const existing = await db.screens.findByIdAndCompany(req.params.id, req.user.company_id)
+      if (!existing) return res.status(404).json({ error: 'Não encontrado' })
       await db.screens.remove(req.params.id)
       res.json({ ok: true })
     } catch (e) { res.status(500).json({ error: e.message }) }
@@ -74,6 +78,8 @@ module.exports = function screenRoutes(_io) {
 
   router.post('/:id/push', async (req, res) => {
     try {
+      const existing = await db.screens.findByIdAndCompany(req.params.id, req.user.company_id)
+      if (!existing) return res.status(404).json({ error: 'Não encontrado' })
       const ok = await pushToScreen(Number(req.params.id))
       res.json({ ok })
     } catch (e) { res.status(500).json({ error: e.message }) }

@@ -10,9 +10,9 @@ module.exports = function tickerRoutes(_io) {
     for (const s of screens) await pushToScreen(s.id)
   }
 
-  router.get('/', async (_req, res) => {
+  router.get('/', async (req, res) => {
     try {
-      const tickers = await db.tickers.all()
+      const tickers = await db.tickers.allForCompany(req.user.company_id)
       res.json(tickers.sort((a, b) => b.created_at.localeCompare(a.created_at)))
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
@@ -22,13 +22,13 @@ module.exports = function tickerRoutes(_io) {
       const { name, messages, speed = 60, font_size = 32, color = '#ffffff', bg_color = '#dc2626' } = req.body
       if (!name) return res.status(400).json({ error: 'name é obrigatório' })
       if (!messages || messages.length === 0) return res.status(400).json({ error: 'Adicione ao menos uma mensagem' })
-      res.json(await db.tickers.insert({ name, messages, speed, font_size, color, bg_color }))
+      res.json(await db.tickers.insert({ name, messages, speed, font_size, color, bg_color, company_id: req.user.company_id }))
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
   router.get('/:id', async (req, res) => {
     try {
-      const t = await db.tickers.get(req.params.id)
+      const t = await db.tickers.findByIdAndCompany(req.params.id, req.user.company_id)
       if (!t) return res.status(404).json({ error: 'Não encontrado' })
       res.json(t)
     } catch (e) { res.status(500).json({ error: e.message }) }
@@ -36,7 +36,7 @@ module.exports = function tickerRoutes(_io) {
 
   router.put('/:id', async (req, res) => {
     try {
-      const t = await db.tickers.get(req.params.id)
+      const t = await db.tickers.findByIdAndCompany(req.params.id, req.user.company_id)
       if (!t) return res.status(404).json({ error: 'Não encontrado' })
       const { name, messages, speed, font_size, color, bg_color } = req.body
       const updated = await db.tickers.update(req.params.id, {
@@ -54,6 +54,8 @@ module.exports = function tickerRoutes(_io) {
 
   router.delete('/:id', async (req, res) => {
     try {
+      const t = await db.tickers.findByIdAndCompany(req.params.id, req.user.company_id)
+      if (!t) return res.status(404).json({ error: 'Não encontrado' })
       await db.tickers.remove(req.params.id)
       res.json({ ok: true })
     } catch (e) { res.status(500).json({ error: e.message }) }

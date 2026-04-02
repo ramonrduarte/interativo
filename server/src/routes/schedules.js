@@ -16,7 +16,7 @@ async function enrichSchedule(s) {
 
 router.get('/', async (req, res) => {
   try {
-    let rows = await db.schedules.all()
+    let rows = await db.schedules.allForCompany(req.user.company_id)
     if (req.query.screen_id) rows = rows.filter(s => s.screen_id == req.query.screen_id)
     res.json(await Promise.all(rows.map(enrichSchedule)))
   } catch (e) { res.status(500).json({ error: e.message }) }
@@ -38,6 +38,7 @@ router.post('/', async (req, res) => {
       end_time,
       priority:    Number(priority),
       active:      true,
+      company_id:  req.user.company_id,
     })
     triggerCheck()
     res.json(await enrichSchedule(row))
@@ -46,7 +47,7 @@ router.post('/', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
-    const s = await db.schedules.get(req.params.id)
+    const s = await db.schedules.findByIdAndCompany(req.params.id, req.user.company_id)
     if (!s) return res.status(404).json({ error: 'Não encontrado' })
     res.json(await enrichSchedule(s))
   } catch (e) { res.status(500).json({ error: e.message }) }
@@ -54,6 +55,8 @@ router.get('/:id', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
+    const existing = await db.schedules.findByIdAndCompany(req.params.id, req.user.company_id)
+    if (!existing) return res.status(404).json({ error: 'Não encontrado' })
     const { screen_id, playlist_id, name, days, start_time, end_time, priority, active } = req.body
     const s = await db.schedules.update(req.params.id, {
       screen_id:   screen_id   !== undefined ? Number(screen_id)   : undefined,
@@ -65,7 +68,6 @@ router.put('/:id', async (req, res) => {
       priority:    priority    !== undefined ? Number(priority)   : undefined,
       active:      active      !== undefined ? Boolean(active)    : undefined,
     })
-    if (!s) return res.status(404).json({ error: 'Não encontrado' })
     triggerCheck()
     res.json(await enrichSchedule(s))
   } catch (e) { res.status(500).json({ error: e.message }) }
@@ -73,6 +75,8 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
+    const existing = await db.schedules.findByIdAndCompany(req.params.id, req.user.company_id)
+    if (!existing) return res.status(404).json({ error: 'Não encontrado' })
     await db.schedules.remove(req.params.id)
     triggerCheck()
     res.json({ ok: true })

@@ -1,13 +1,14 @@
 const express = require('express')
 const { createServer } = require('http')
-const cors   = require('cors')
-const path   = require('path')
+const cors        = require('cors')
+const path        = require('path')
 const { db, initDb } = require('./db')
 const { initSocket, pushToScreen, completePairing, registry, pairingRegistry } = require('./socket')
 const { startScheduler } = require('./scheduler')
+const requireAuth = require('./middleware/auth')
 
 async function main() {
-  // Initialize database + run migrations + seed layouts
+  // Initialize database + run migrations + seed layouts + seed default company/user
   await initDb()
 
   const app    = express()
@@ -20,20 +21,14 @@ async function main() {
   app.use(express.json())
   app.use('/uploads', express.static(path.join(__dirname, '../../uploads')))
 
-  // Serve built TV app at /tv/
+  // Serve built TV app at /tv/ (no auth — TV uses screen token)
   app.use('/tv', express.static(path.join(__dirname, '../public/tv')))
   app.get('/tv/*', (_req, res) => res.sendFile(path.join(__dirname, '../public/tv/index.html')))
 
-  // API Routes
-  app.use('/api/content',   require('./routes/content')(io))
-  app.use('/api/layouts',   require('./routes/layouts'))
-  app.use('/api/playlists', require('./routes/playlists')(io))
-  app.use('/api/screens',   require('./routes/screens')(io))
-  app.use('/api/tickers',   require('./routes/tickers')(io))
-  app.use('/api/schedules', require('./routes/schedules'))
-  app.use('/api/iptv',      require('./routes/iptv'))
+  // Public API — auth routes (no JWT required)
+  app.use('/api/auth', require('./routes/auth'))
 
-  // Pairing
+  // Public endpoint — TV pairing (TV has no JWT)
   app.post('/api/pair', async (req, res) => {
     const { code, screen_id } = req.body
     if (!code || !screen_id) return res.status(400).json({ error: 'code e screen_id são obrigatórios' })
@@ -44,14 +39,17 @@ async function main() {
     res.json({ ok: true, screen_name: screen.name })
   })
 
+  app.get('/api/health', (_req, res) => {
+    res.json({ ok: true, connectedScreens: registry.size, uptime: process.uptime() })
+  })
+
+  // Protected API — all routes below require JWT
+  app.use('/api', requireAuth)
+
   app.get('/api/pair/waiting', (_req, res) => {
     const waiting = []
     pairingRegistry.forEach((_socketId, code) => waiting.push({ code }))
     res.json(waiting)
-  })
-
-  app.get('/api/health', (_req, res) => {
-    res.json({ ok: true, connectedScreens: registry.size, uptime: process.uptime() })
   })
 
   app.get('/api/status', (_req, res) => {
@@ -59,6 +57,14 @@ async function main() {
     registry.forEach((info, token) => list.push({ token, ...info }))
     res.json(list)
   })
+
+  app.use('/api/content',   require('./routes/content')(io))
+  app.use('/api/layouts',   require('./routes/layouts'))
+  app.use('/api/playlists', require('./routes/playlists')(io))
+  app.use('/api/screens',   require('./routes/screens')(io))
+  app.use('/api/tickers',   require('./routes/tickers')(io))
+  app.use('/api/schedules', require('./routes/schedules'))
+  app.use('/api/iptv',      require('./routes/iptv'))
 
   // Serve built Dashboard at / (must be after all API routes)
   app.use(express.static(path.join(__dirname, '../public/dashboard')))
