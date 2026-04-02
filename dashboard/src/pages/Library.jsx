@@ -39,6 +39,8 @@ export default function Library() {
         xhr.onload = () => resolve()
         xhr.onerror = () => reject(new Error('Falha no upload'))
         xhr.open('POST', '/api/content/upload')
+        const token = localStorage.getItem('auth_token')
+        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
         xhr.send(fd)
       }).catch(e => alert(e.message))
     }
