@@ -10,8 +10,7 @@ import android.os.PowerManager
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
-import android.view.WindowInsets
-import android.view.WindowInsetsController
+import android.view.WindowManager
 import android.webkit.*
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -35,18 +34,20 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Keep screen on — works on all Android versions
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.addFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+
         acquireWakeLock()
         hideSystemUI()
 
-        // Disable hardware acceleration for WebView — fixes black screen on many TV boxes
-        WebView.enableSlowWholeDocumentDraw()
+        // Needed on some Android 4.x WebViews to avoid black frames
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            WebView.enableSlowWholeDocumentDraw()
+        }
 
         webView = WebView(this).apply {
             setBackgroundColor(Color.BLACK)
-            // Force software rendering for compatibility with TV boxes
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                setLayerType(View.LAYER_TYPE_HARDWARE, null)
-            }
         }
         setContentView(webView)
         setupWebView()
@@ -58,55 +59,54 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWebView() {
         webView.settings.apply {
-            javaScriptEnabled               = true
-            domStorageEnabled               = true
-            databaseEnabled                 = true
-            allowFileAccess                 = true
-            allowContentAccess              = true
-            mediaPlaybackRequiresUserGesture = false
-            loadsImagesAutomatically        = true
+            javaScriptEnabled                    = true
+            domStorageEnabled                    = true
+            allowFileAccess                      = true
+            allowContentAccess                   = true
+            loadsImagesAutomatically             = true
+            mediaPlaybackRequiresUserGesture     = false
             javaScriptCanOpenWindowsAutomatically = true
+            useWideViewPort                      = true
+            loadWithOverviewMode                 = true
+            cacheMode                            = WebSettings.LOAD_DEFAULT
 
-            // Wider compatibility for older WebView versions on TV boxes
-            @Suppress("DEPRECATION")
-            saveFormData = false
             @Suppress("DEPRECATION")
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
 
-            // Use cache when offline
-            cacheMode = WebSettings.LOAD_DEFAULT
+            // Database storage — available since API 19
+            @Suppress("DEPRECATION")
+            databaseEnabled = true
 
-            // Force desktop-class rendering
-            useWideViewPort    = true
-            loadWithOverviewMode = true
-
-            // Override UA so the TV app gets the same experience as a desktop browser
+            // Force a modern Chrome UA so React/Vite render correctly on old WebViews
             userAgentString = "Mozilla/5.0 (Linux; Android ${Build.VERSION.RELEASE}; TV) " +
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 InterativaTV/1.0"
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 InterativaTV/1.0"
         }
 
         webView.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView, url: String) {
-                super.onPageFinished(view, url)
-                // Ensure background is black while content loads
-                view.setBackgroundColor(Color.BLACK)
-            }
 
-            @Suppress("DEPRECATION")
+            // Legacy callback — required for Android < 6.0 (API < 23), common on TV boxes
+            @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
             override fun onReceivedError(view: WebView, errorCode: Int, description: String, failingUrl: String) {
-                // Legacy callback for Android < 6.0 (common on TV boxes)
-                view.postDelayed({ view.reload() }, 5000)
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+                    view.postDelayed({ view.reload() }, 5000)
+                }
             }
 
+            // Modern callback — Android 6.0+
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
-                if (request.isForMainFrame) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && request.isForMainFrame) {
                     view.postDelayed({ view.reload() }, 5000)
                 }
             }
 
             override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: android.net.http.SslError) {
-                // Accept self-signed certs on local network
+                // Accept self-signed certs (local network IPs)
                 handler.proceed()
+            }
+
+            override fun onPageFinished(view: WebView, url: String) {
+                super.onPageFinished(view, url)
+                view.setBackgroundColor(Color.BLACK)
             }
         }
 
@@ -119,8 +119,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadUrl(serverUrl: String) {
-        val base = serverUrl.trimEnd('/')
-        webView.loadUrl("$base/tv/")
+        webView.loadUrl("${serverUrl.trimEnd('/')}/tv/")
     }
 
     private fun getSavedUrl(): String? =
@@ -163,7 +162,7 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // 5 toques em até 3s → abre configuração (funciona com controle remoto também via DPAD_CENTER)
+    // 5 toques em até 3s → abre configuração
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         if (ev.action == MotionEvent.ACTION_DOWN) {
             val now = System.currentTimeMillis()
@@ -173,7 +172,7 @@ class MainActivity : AppCompatActivity() {
         return super.dispatchTouchEvent(ev)
     }
 
-    // Suporte ao controle remoto do TV box: OK/Enter 5x abre config
+    // Controle remoto (TV box): OK/Enter 5x abre configuração
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
             val now = System.currentTimeMillis()
@@ -187,6 +186,7 @@ class MainActivity : AppCompatActivity() {
     private fun acquireWakeLock() {
         try {
             val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            @Suppress("DEPRECATION")
             wakeLock = pm.newWakeLock(
                 PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
                 "Interativa:WakeLock"
@@ -195,14 +195,18 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) {}
     }
 
+    @Suppress("DEPRECATION")
     private fun hideSystemUI() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.insetsController?.let {
-                it.hide(WindowInsets.Type.systemBars())
-                it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            // Android 11+ (API 30+)
+            val ctrl = window.insetsController
+            if (ctrl != null) {
+                ctrl.hide(android.view.WindowInsets.Type.systemBars())
+                ctrl.systemBarsBehavior =
+                    android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
-        } else {
-            @Suppress("DEPRECATION")
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            // Android 4.4 – 10 (API 19–29)
             window.decorView.systemUiVisibility = (
                 View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                 or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -211,8 +215,11 @@ class MainActivity : AppCompatActivity() {
                 or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                 or View.SYSTEM_UI_FLAG_FULLSCREEN
             )
+        } else {
+            // Android 4.0 – 4.3 (API 14–18): apenas fullscreen
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN
+            window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
         }
-        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -223,6 +230,7 @@ class MainActivity : AppCompatActivity() {
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         if (webView.canGoBack()) webView.goBack()
+        // else: bloqueia o botão voltar (kiosk)
     }
 
     override fun onDestroy() {
