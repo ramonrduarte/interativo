@@ -3,9 +3,11 @@ package com.interativa.tv
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.Context
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
@@ -19,14 +21,13 @@ import androidx.appcompat.app.AppCompatActivity
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
-    private lateinit var wakeLock: PowerManager.WakeLock
+    private var wakeLock: PowerManager.WakeLock? = null
 
-    // Conta toques para abrir config (5 toques em 3s)
     private var tapCount = 0
     private var firstTapTime = 0L
 
     companion object {
-        private const val PREFS  = "interativa"
+        private const val PREFS   = "interativa"
         private const val KEY_URL = "server_url"
     }
 
@@ -34,55 +35,87 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Manter tela acesa sempre
-        @Suppress("DEPRECATION")
-        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = pm.newWakeLock(
-            PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
-            "Interativa:WakeLock"
-        )
-        wakeLock.acquire()
-
+        acquireWakeLock()
         hideSystemUI()
 
-        webView = WebView(this)
+        // Disable hardware acceleration for WebView — fixes black screen on many TV boxes
+        WebView.enableSlowWholeDocumentDraw()
+
+        webView = WebView(this).apply {
+            setBackgroundColor(Color.BLACK)
+            // Force software rendering for compatibility with TV boxes
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            }
+        }
         setContentView(webView)
         setupWebView()
 
         val url = getSavedUrl()
-        if (url.isNullOrBlank()) {
-            showSetupDialog()
-        } else {
-            loadUrl(url)
-        }
+        if (url.isNullOrBlank()) showSetupDialog() else loadUrl(url)
     }
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWebView() {
         webView.settings.apply {
-            javaScriptEnabled        = true
-            domStorageEnabled        = true
-            allowFileAccess          = true
+            javaScriptEnabled               = true
+            domStorageEnabled               = true
+            databaseEnabled                 = true
+            allowFileAccess                 = true
+            allowContentAccess              = true
             mediaPlaybackRequiresUserGesture = false
-            // Usa cache quando offline, rede quando disponível
-            cacheMode                = WebSettings.LOAD_DEFAULT
+            loadsImagesAutomatically        = true
+            javaScriptCanOpenWindowsAutomatically = true
+
+            // Wider compatibility for older WebView versions on TV boxes
             @Suppress("DEPRECATION")
-            mixedContentMode         = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            saveFormData = false
+            @Suppress("DEPRECATION")
+            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+
+            // Use cache when offline
+            cacheMode = WebSettings.LOAD_DEFAULT
+
+            // Force desktop-class rendering
+            useWideViewPort    = true
+            loadWithOverviewMode = true
+
+            // Override UA so the TV app gets the same experience as a desktop browser
+            userAgentString = "Mozilla/5.0 (Linux; Android ${Build.VERSION.RELEASE}; TV) " +
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 InterativaTV/1.0"
         }
 
         webView.webViewClient = object : WebViewClient() {
-            override fun onReceivedError(
-                view: WebView,
-                request: WebResourceRequest,
-                error: WebResourceError
-            ) {
-                // Servidor indisponível — tenta novamente em 5s
+            override fun onPageFinished(view: WebView, url: String) {
+                super.onPageFinished(view, url)
+                // Ensure background is black while content loads
+                view.setBackgroundColor(Color.BLACK)
+            }
+
+            @Suppress("DEPRECATION")
+            override fun onReceivedError(view: WebView, errorCode: Int, description: String, failingUrl: String) {
+                // Legacy callback for Android < 6.0 (common on TV boxes)
+                view.postDelayed({ view.reload() }, 5000)
+            }
+
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                 if (request.isForMainFrame) {
                     view.postDelayed({ view.reload() }, 5000)
                 }
             }
+
+            override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: android.net.http.SslError) {
+                // Accept self-signed certs on local network
+                handler.proceed()
+            }
         }
-        webView.webChromeClient = WebChromeClient()
+
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(msg: ConsoleMessage): Boolean {
+                android.util.Log.d("InterativaTV", "[JS] ${msg.message()} (${msg.sourceId()}:${msg.lineNumber()})")
+                return true
+            }
+        }
     }
 
     private fun loadUrl(serverUrl: String) {
@@ -101,18 +134,15 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(60, 24, 60, 8)
         }
-
         layout.addView(TextView(this).apply {
             text = "URL do servidor Interativa:"
             setPadding(0, 0, 0, 12)
         })
-
         val input = EditText(this).apply {
             setText(getSavedUrl() ?: "")
             hint = "http://192.168.0.110:3001"
         }
         layout.addView(input)
-
         layout.addView(TextView(this).apply {
             text = "\nDica: use o IP da rede local e a porta 3001."
             textSize = 12f
@@ -129,34 +159,47 @@ class MainActivity : AppCompatActivity() {
                     loadUrl(url)
                 }
             }
-            .setCancelable(getSavedUrl() != null) // cancela só se já tiver URL salva
+            .setCancelable(getSavedUrl() != null)
             .show()
     }
 
-    // 5 toques em até 3s em qualquer lugar → abre configuração
+    // 5 toques em até 3s → abre configuração (funciona com controle remoto também via DPAD_CENTER)
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         if (ev.action == MotionEvent.ACTION_DOWN) {
             val now = System.currentTimeMillis()
-            if (now - firstTapTime > 3000) {
-                tapCount    = 0
-                firstTapTime = now
-            }
-            tapCount++
-            if (tapCount >= 5) {
-                tapCount = 0
-                showSetupDialog()
-                return true
-            }
+            if (now - firstTapTime > 3000) { tapCount = 0; firstTapTime = now }
+            if (++tapCount >= 5) { tapCount = 0; showSetupDialog(); return true }
         }
         return super.dispatchTouchEvent(ev)
+    }
+
+    // Suporte ao controle remoto do TV box: OK/Enter 5x abre config
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
+            val now = System.currentTimeMillis()
+            if (now - firstTapTime > 3000) { tapCount = 0; firstTapTime = now }
+            if (++tapCount >= 5) { tapCount = 0; showSetupDialog(); return true }
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun acquireWakeLock() {
+        try {
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            wakeLock = pm.newWakeLock(
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                "Interativa:WakeLock"
+            )
+            wakeLock?.acquire()
+        } catch (_: Exception) {}
     }
 
     private fun hideSystemUI() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.insetsController?.let {
                 it.hide(WindowInsets.Type.systemBars())
-                it.systemBarsBehavior =
-                    WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
         } else {
             @Suppress("DEPRECATION")
@@ -169,6 +212,7 @@ class MainActivity : AppCompatActivity() {
                 or View.SYSTEM_UI_FLAG_FULLSCREEN
             )
         }
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -179,11 +223,10 @@ class MainActivity : AppCompatActivity() {
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         if (webView.canGoBack()) webView.goBack()
-        // else: não faz nada — bloqueia o botão voltar
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        if (::wakeLock.isInitialized && wakeLock.isHeld) wakeLock.release()
+        wakeLock?.let { if (it.isHeld) it.release() }
     }
 }
