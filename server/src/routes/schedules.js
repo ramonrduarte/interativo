@@ -37,7 +37,7 @@ router.post('/', async (req, res) => {
       start_time,
       end_time,
       priority:    Number(priority),
-      active:      true,
+      active:      1,
       company_id:  req.user.company_id,
     })
     triggerCheck()
@@ -66,7 +66,7 @@ router.put('/:id', async (req, res) => {
       start_time:  start_time  !== undefined ? start_time         : undefined,
       end_time:    end_time    !== undefined ? end_time           : undefined,
       priority:    priority    !== undefined ? Number(priority)   : undefined,
-      active:      active      !== undefined ? Boolean(active)    : undefined,
+      active:      active      !== undefined ? (active ? 1 : 0)   : undefined,
     })
     triggerCheck()
     res.json(await enrichSchedule(s))
