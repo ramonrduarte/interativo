@@ -64,8 +64,8 @@ async function startScheduler(pushFn) {
   } catch (e) {
     console.error('[scheduler] erro ao inicializar:', e.message)
   }
-  setInterval(tick, 10_000)  // check every 10 seconds for timely transitions
-  console.log('[scheduler] Iniciado — verificando agendamentos a cada 10s')
+  setInterval(tick, 30_000)
+  console.log('[scheduler] Iniciado — verificando agendamentos a cada 30s')
 }
 
 function triggerCheck() {
