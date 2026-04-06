@@ -72,4 +72,10 @@ function triggerCheck() {
   tick().catch(e => console.error('[scheduler] triggerCheck erro:', e.message))
 }
 
-module.exports = { startScheduler, triggerCheck }
+function getDebugState() {
+  const state = {}
+  lastPushed.forEach((key, screenId) => { state[screenId] = key })
+  return state
+}
+
+module.exports = { startScheduler, triggerCheck, getDebugState }

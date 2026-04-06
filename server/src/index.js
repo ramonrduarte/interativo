@@ -4,7 +4,7 @@ const cors        = require('cors')
 const path        = require('path')
 const { db, initDb } = require('./db')
 const { initSocket, pushToScreen, completePairing, registry, pairingRegistry } = require('./socket')
-const { startScheduler } = require('./scheduler')
+const { startScheduler, getDebugState } = require('./scheduler')
 const requireAuth = require('./middleware/auth')
 
 async function main() {
@@ -41,6 +41,53 @@ async function main() {
 
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true, connectedScreens: registry.size, uptime: process.uptime() })
+  })
+
+  // Debug endpoint — shows scheduler state + connected screens (no auth, local diagnosis)
+  app.get('/api/debug/scheduler', async (_req, res) => {
+    try {
+      const now = new Date()
+      const hh  = String(now.getHours()).padStart(2, '0')
+      const mm  = String(now.getMinutes()).padStart(2, '0')
+      const screens   = await db.screens.all()
+      const schedules = await db.schedules.all()
+      const lastPushedState = getDebugState()
+
+      const screensInfo = screens.map(s => {
+        const connected = [...registry.values()].some(r => r.screenId === s.id)
+        return {
+          id: s.id, name: s.name, token: s.token,
+          playlist_id: s.playlist_id, playlist_group_id: s.playlist_group_id,
+          connected,
+          schedulerKey: lastPushedState[s.id] ?? '(não inicializado)',
+        }
+      })
+
+      const schedulesInfo = schedules.map(s => {
+        const days = Array.isArray(s.days) ? s.days : []
+        const currentDay = now.getDay()
+        const currentTime = `${hh}:${mm}`
+        const isActiveNow = s.active == 1
+          && days.includes(currentDay)
+          && currentTime >= s.start_time
+          && currentTime < s.end_time
+        return {
+          id: s.id, name: s.name, screen_id: s.screen_id,
+          playlist_id: s.playlist_id, active: s.active,
+          days, start_time: s.start_time, end_time: s.end_time,
+          isActiveNow,
+        }
+      })
+
+      res.json({
+        serverTime: `${hh}:${mm}`, serverDay: now.getDay(),
+        dayNames: ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'],
+        screens: screensInfo,
+        schedules: schedulesInfo,
+      })
+    } catch (e) {
+      res.status(500).json({ error: e.message })
+    }
   })
 
   // Protected API — all routes below require JWT

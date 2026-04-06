@@ -181,6 +181,9 @@ async function pushToScreen(screenId) {
   if (!screen || !io) return false
   const payload = await buildPayload(screenId)
   if (!payload) return false
+  const room = io.sockets.adapter.rooms.get(screen.token)
+  const sockets = room ? room.size : 0
+  console.log(`[push] Tela ${screenId} (${screen.name}): ${payload.slides.length} slides → ${sockets} TV(s) conectada(s)`)
   io.to(screen.token).emit('config:update', payload)
   return true
 }
