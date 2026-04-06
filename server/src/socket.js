@@ -16,11 +16,11 @@ async function getActivePlaylistId(screen) {
   const currentTime = `${hh}:${mm}`
 
   const schedules = await db.schedules.where(
-    s => s.screen_id == screen.id && s.active !== false
+    s => s.screen_id == screen.id && s.active == 1
   )
   const active = schedules
     .filter(s => {
-      const days = s.days || []
+      const days = Array.isArray(s.days) ? s.days : []
       if (!days.includes(currentDay)) return false
       return currentTime >= s.start_time && currentTime < s.end_time
     })

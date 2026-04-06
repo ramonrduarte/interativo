@@ -2,9 +2,11 @@ const { db } = require('./db')
 
 let pushToScreen  // injected after socket initializes to avoid circular dep
 
-const lastPushed = new Map() // screenId -> playlistId
+const lastPushed = new Map() // screenId -> stateKey string
 
-async function getActivePlaylistId(screen) {
+// Returns a stable string key representing what a screen should be showing right now.
+// Comparing this key across ticks lets us detect any change (schedule start, end, or default switch).
+async function getScreenStateKey(screen) {
   const now = new Date()
   const currentDay  = now.getDay()
   const hh          = String(now.getHours()).padStart(2, '0')
@@ -12,17 +14,21 @@ async function getActivePlaylistId(screen) {
   const currentTime = `${hh}:${mm}`
 
   const schedules = await db.schedules.where(
-    s => s.screen_id == screen.id && s.active !== false
+    s => s.screen_id == screen.id && s.active == 1
   )
   const active = schedules
     .filter(s => {
-      const days = s.days || []
+      const days = Array.isArray(s.days) ? s.days : []
       if (!days.includes(currentDay)) return false
       return currentTime >= s.start_time && currentTime < s.end_time
     })
     .sort((a, b) => (b.priority || 0) - (a.priority || 0))
 
-  return active.length > 0 ? active[0].playlist_id : screen.playlist_id
+  if (active.length > 0) return `sched:${active[0].id}`
+
+  if (screen.playlist_group_id) return `group:${screen.playlist_group_id}`
+  if (screen.playlist_id)       return `pl:${screen.playlist_id}`
+  return 'empty'
 }
 
 async function tick() {
@@ -30,12 +36,16 @@ async function tick() {
   try {
     const screens = await db.screens.all()
     for (const screen of screens) {
-      const activeId = await getActivePlaylistId(screen)
-      const prev     = lastPushed.get(screen.id)
-      if (prev !== activeId) {
-        lastPushed.set(screen.id, activeId)
-        await pushToScreen(screen.id)
-        console.log(`[scheduler] Screen ${screen.id} (${screen.name}): playlist → ${activeId ?? 'nenhuma'}`)
+      try {
+        const key  = await getScreenStateKey(screen)
+        const prev = lastPushed.get(screen.id)
+        if (prev !== key) {
+          lastPushed.set(screen.id, key)
+          await pushToScreen(screen.id)
+          console.log(`[scheduler] Tela ${screen.id} (${screen.name}): ${prev ?? '?'} → ${key}`)
+        }
+      } catch (e) {
+        console.error(`[scheduler] erro na tela ${screen.id}:`, e.message)
       }
     }
   } catch (e) {
@@ -49,13 +59,13 @@ async function startScheduler(pushFn) {
   try {
     const screens = await db.screens.all()
     for (const screen of screens) {
-      lastPushed.set(screen.id, await getActivePlaylistId(screen))
+      lastPushed.set(screen.id, await getScreenStateKey(screen))
     }
   } catch (e) {
     console.error('[scheduler] erro ao inicializar:', e.message)
   }
-  setInterval(tick, 30_000)
-  console.log('[scheduler] Iniciado — verificando agendamentos a cada 30s')
+  setInterval(tick, 10_000)  // check every 10 seconds for timely transitions
+  console.log('[scheduler] Iniciado — verificando agendamentos a cada 10s')
 }
 
 function triggerCheck() {
