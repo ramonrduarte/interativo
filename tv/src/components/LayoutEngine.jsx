@@ -50,7 +50,7 @@ export default function LayoutEngine({ config }) {
 
   if (!slides || slides.length === 0) {
     return (
-      <div className={`tv-root${isPortrait ? ' portrait' : ''}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111' }}>
+      <div className={`tv-root${isPortrait ? ' portrait' : ''}`} style={{ alignItems: 'center', justifyContent: 'center', background: '#111' }}>
         <p style={{ color: '#444', fontSize: 18 }}>Nenhum slide configurado</p>
       </div>
     )
@@ -59,13 +59,13 @@ export default function LayoutEngine({ config }) {
   const slide = slides[currentIndex] || slides[0]
   const template = slide.layout?.template || 'fullscreen'
   const zones = slide.layout?.zones || [{ id: 0, label: 'Principal' }]
-  const tickerH = ticker ? 60 : 0
 
   return (
     <div className={`tv-root${isPortrait ? ' portrait' : ''}`}>
+      {/* flex: 1 + minHeight: 0 makes the layout fill all space above the ticker */}
       <div
         className={LAYOUT_CLASS[template] || 'layout-fullscreen'}
-        style={{ height: `calc(100% - ${tickerH}px)` }}
+        style={{ flex: 1, minHeight: 0 }}
       >
         {zones.map((z, i) => (
           <ZoneRenderer key={`${slide.id}-${i}`} item={slide.zones?.[i] || null} zoneLabel={z.label} />
