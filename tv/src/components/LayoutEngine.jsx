@@ -62,10 +62,11 @@ export default function LayoutEngine({ config }) {
 
   return (
     <div className={`tv-root${isPortrait ? ' portrait' : ''}`}>
-      {/* flex: 1 + minHeight: 0 makes the layout fill all space above the ticker */}
+      {/* flex: 1 + height: 0 overrides the height:100% in CSS classes so the
+          layout fills only the space above the ticker, nothing more */}
       <div
         className={LAYOUT_CLASS[template] || 'layout-fullscreen'}
-        style={{ flex: 1, minHeight: 0 }}
+        style={{ flex: 1, height: 0 }}
       >
         {zones.map((z, i) => (
           <ZoneRenderer key={`${slide.id}-${i}`} item={slide.zones?.[i] || null} zoneLabel={z.label} />
