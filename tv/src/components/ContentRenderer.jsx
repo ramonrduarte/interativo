@@ -150,6 +150,8 @@ function IptvContent({ item }) {
   const [error, setError] = useState(false)
   const rawUrl = item.url
   const url = resolveStreamUrl(rawUrl)
+  // 'contain' by default so the full broadcast frame is always visible
+  const objectFit = item.objectFit && item.objectFit !== 'cover' ? item.objectFit : 'contain'
 
   useEffect(() => {
     const video = ref.current
@@ -198,7 +200,7 @@ function IptvContent({ item }) {
     <div style={{ width: '100%', height: '100%', position: 'relative', background: '#000' }}>
       <video
         ref={ref}
-        style={{ width: '100%', height: '100%', objectFit: item.objectFit || 'cover', display: 'block' }}
+        style={{ width: '100%', height: '100%', objectFit, display: 'block', background: '#000' }}
         autoPlay muted playsInline
         onError={() => setError(true)}
       />
