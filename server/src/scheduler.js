@@ -1,4 +1,5 @@
 const { db } = require('./db')
+const { isScheduleActiveNow } = require('./scheduleUtils')
 
 let pushToScreen  // injected after socket initializes to avoid circular dep
 
@@ -8,23 +9,23 @@ const lastPushed = new Map() // screenId -> stateKey string
 // Comparing this key across ticks lets us detect any change (schedule start, end, or default switch).
 async function getScreenStateKey(screen) {
   const now = new Date()
-  const currentDay  = now.getDay()
-  const hh          = String(now.getHours()).padStart(2, '0')
-  const mm          = String(now.getMinutes()).padStart(2, '0')
-  const currentTime = `${hh}:${mm}`
 
-  const schedules = await db.schedules.where(
-    s => s.screen_id == screen.id && s.active == 1
-  )
+  const schedules = await db.schedules.where(s => s.screen_id == screen.id)
   const active = schedules
-    .filter(s => {
-      const days = Array.isArray(s.days) ? s.days : []
-      if (!days.includes(currentDay)) return false
-      return currentTime >= s.start_time && currentTime < s.end_time
-    })
+    .filter(s => isScheduleActiveNow(s, now))
     .sort((a, b) => (b.priority || 0) - (a.priority || 0))
 
-  if (active.length > 0) return `sched:${active[0].id}`
+  if (active.length > 0) {
+    const s = active[0]
+    // For interval schedules include the cycle number so the key changes each occurrence
+    if (s.interval_minutes && s.interval_duration) {
+      const [sh, sm] = s.start_time.split(':').map(Number)
+      const elapsedMins = now.getHours() * 60 + now.getMinutes() - (sh * 60 + sm)
+      const cycle = Math.floor(elapsedMins / s.interval_minutes)
+      return `sched-int:${s.id}:${cycle}`
+    }
+    return `sched:${s.id}`
+  }
 
   if (screen.playlist_group_id) return `group:${screen.playlist_group_id}`
   if (screen.playlist_id)       return `pl:${screen.playlist_id}`

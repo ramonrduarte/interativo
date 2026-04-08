@@ -1,5 +1,6 @@
 const { Server } = require('socket.io')
 const { db } = require('./db')
+const { isScheduleActiveNow } = require('./scheduleUtils')
 
 let io
 const registry        = new Map()  // token -> { socketId, screenId, lastSeen }
@@ -10,20 +11,10 @@ const pairingRegistry = new Map()  // code  -> socketId
 // ---------------------------------------------------------------------------
 async function getActivePlaylistId(screen) {
   const now = new Date()
-  const currentDay  = now.getDay()
-  const hh          = String(now.getHours()).padStart(2, '0')
-  const mm          = String(now.getMinutes()).padStart(2, '0')
-  const currentTime = `${hh}:${mm}`
 
-  const schedules = await db.schedules.where(
-    s => s.screen_id == screen.id && s.active == 1
-  )
+  const schedules = await db.schedules.where(s => s.screen_id == screen.id)
   const active = schedules
-    .filter(s => {
-      const days = Array.isArray(s.days) ? s.days : []
-      if (!days.includes(currentDay)) return false
-      return currentTime >= s.start_time && currentTime < s.end_time
-    })
+    .filter(s => isScheduleActiveNow(s, now))
     .sort((a, b) => (b.priority || 0) - (a.priority || 0))
 
   // Schedule overrides always return a single playlist_id

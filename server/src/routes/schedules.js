@@ -24,21 +24,30 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { screen_id, playlist_id, name, days, start_time, end_time, priority = 0 } = req.body
+    const {
+      screen_id, playlist_id, name,
+      days, start_time, end_time, priority = 0,
+      interval_minutes, interval_duration,
+      date_from, date_to,
+    } = req.body
     if (!screen_id)   return res.status(400).json({ error: 'screen_id é obrigatório' })
     if (!playlist_id) return res.status(400).json({ error: 'playlist_id é obrigatório' })
     if (!start_time || !end_time) return res.status(400).json({ error: 'start_time e end_time são obrigatórios' })
-    if (!Array.isArray(days) || days.length === 0) return res.status(400).json({ error: 'days é obrigatório' })
+
     const row = await db.schedules.insert({
-      screen_id:   Number(screen_id),
-      playlist_id: Number(playlist_id),
-      name:        name || null,
-      days,
+      screen_id:         Number(screen_id),
+      playlist_id:       Number(playlist_id),
+      name:              name || null,
+      days:              Array.isArray(days) ? days : [],
       start_time,
       end_time,
-      priority:    Number(priority),
-      active:      1,
-      company_id:  req.user.company_id,
+      priority:          Number(priority),
+      active:            1,
+      interval_minutes:  interval_minutes ? Number(interval_minutes) : null,
+      interval_duration: interval_duration ? Number(interval_duration) : null,
+      date_from:         date_from || null,
+      date_to:           date_to   || null,
+      company_id:        req.user.company_id,
     })
     triggerCheck()
     res.json(await enrichSchedule(row))
@@ -57,16 +66,25 @@ router.put('/:id', async (req, res) => {
   try {
     const existing = await db.schedules.findByIdAndCompany(req.params.id, req.user.company_id)
     if (!existing) return res.status(404).json({ error: 'Não encontrado' })
-    const { screen_id, playlist_id, name, days, start_time, end_time, priority, active } = req.body
+    const {
+      screen_id, playlist_id, name,
+      days, start_time, end_time, priority, active,
+      interval_minutes, interval_duration,
+      date_from, date_to,
+    } = req.body
     const s = await db.schedules.update(req.params.id, {
-      screen_id:   screen_id   !== undefined ? Number(screen_id)   : undefined,
-      playlist_id: playlist_id !== undefined ? Number(playlist_id) : undefined,
-      name:        name        !== undefined ? name                : undefined,
-      days:        days        !== undefined ? days                : undefined,
-      start_time:  start_time  !== undefined ? start_time         : undefined,
-      end_time:    end_time    !== undefined ? end_time           : undefined,
-      priority:    priority    !== undefined ? Number(priority)   : undefined,
-      active:      active      !== undefined ? (active ? 1 : 0)   : undefined,
+      screen_id:         screen_id         !== undefined ? Number(screen_id)                  : undefined,
+      playlist_id:       playlist_id       !== undefined ? Number(playlist_id)                : undefined,
+      name:              name              !== undefined ? name                               : undefined,
+      days:              days              !== undefined ? days                               : undefined,
+      start_time:        start_time        !== undefined ? start_time                         : undefined,
+      end_time:          end_time          !== undefined ? end_time                           : undefined,
+      priority:          priority          !== undefined ? Number(priority)                   : undefined,
+      active:            active            !== undefined ? (active ? 1 : 0)                  : undefined,
+      interval_minutes:  interval_minutes  !== undefined ? (interval_minutes  ? Number(interval_minutes)  : null) : undefined,
+      interval_duration: interval_duration !== undefined ? (interval_duration ? Number(interval_duration) : null) : undefined,
+      date_from:         date_from         !== undefined ? (date_from || null)                : undefined,
+      date_to:           date_to           !== undefined ? (date_to   || null)                : undefined,
     })
     triggerCheck()
     res.json(await enrichSchedule(s))

@@ -5,6 +5,7 @@ const path        = require('path')
 const { db, initDb } = require('./db')
 const { initSocket, pushToScreen, completePairing, registry, pairingRegistry } = require('./socket')
 const { startScheduler, getDebugState } = require('./scheduler')
+const { isScheduleActiveNow } = require('./scheduleUtils')
 const requireAuth = require('./middleware/auth')
 
 async function main() {
@@ -63,21 +64,14 @@ async function main() {
         }
       })
 
-      const schedulesInfo = schedules.map(s => {
-        const days = Array.isArray(s.days) ? s.days : []
-        const currentDay = now.getDay()
-        const currentTime = `${hh}:${mm}`
-        const isActiveNow = s.active == 1
-          && days.includes(currentDay)
-          && currentTime >= s.start_time
-          && currentTime < s.end_time
-        return {
-          id: s.id, name: s.name, screen_id: s.screen_id,
-          playlist_id: s.playlist_id, active: s.active,
-          days, start_time: s.start_time, end_time: s.end_time,
-          isActiveNow,
-        }
-      })
+      const schedulesInfo = schedules.map(s => ({
+        id: s.id, name: s.name, screen_id: s.screen_id,
+        playlist_id: s.playlist_id, active: s.active,
+        days: s.days, start_time: s.start_time, end_time: s.end_time,
+        interval_minutes: s.interval_minutes, interval_duration: s.interval_duration,
+        date_from: s.date_from, date_to: s.date_to,
+        isActiveNow: isScheduleActiveNow(s, now),
+      }))
 
       res.json({
         serverTime: `${hh}:${mm}`, serverDay: now.getDay(),
