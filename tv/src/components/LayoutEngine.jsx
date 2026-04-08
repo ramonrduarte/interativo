@@ -59,14 +59,14 @@ export default function LayoutEngine({ config }) {
   const slide = slides[currentIndex] || slides[0]
   const template = slide.layout?.template || 'fullscreen'
   const zones = slide.layout?.zones || [{ id: 0, label: 'Principal' }]
+  const TICKER_H = 60
+  const contentHeight = ticker ? `calc(100vh - ${TICKER_H}px)` : '100vh'
 
   return (
     <div className={`tv-root${isPortrait ? ' portrait' : ''}`}>
-      {/* flex: 1 + height: 0 overrides the height:100% in CSS classes so the
-          layout fills only the space above the ticker, nothing more */}
       <div
         className={LAYOUT_CLASS[template] || 'layout-fullscreen'}
-        style={{ flex: 1, height: 0 }}
+        style={{ height: contentHeight }}
       >
         {zones.map((z, i) => (
           <ZoneRenderer key={`${slide.id}-${i}`} item={slide.zones?.[i] || null} zoneLabel={z.label} />

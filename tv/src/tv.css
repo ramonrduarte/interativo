@@ -6,7 +6,7 @@ html, body, #root {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-.tv-root { width: 100vw; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: #000; }
+.tv-root { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
 
 /* ── Portrait (vertical) root — rotates browser 90° so TV in pé works ─── */
 .tv-root.portrait {
@@ -43,7 +43,7 @@ html, body, #root {
 
 /* Ticker */
 .ticker-bar {
-  height: 60px; flex-shrink: 0; width: 100%;
+  position: absolute; bottom: 0; left: 0; right: 0; height: 60px;
   display: flex; align-items: center; overflow: hidden; z-index: 100;
 }
 .ticker-inner {
