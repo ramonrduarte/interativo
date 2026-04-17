@@ -41,14 +41,14 @@ export default function Login({ onLogin }) {
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
               <label style={{ display: 'block', marginBottom: 6, fontWeight: 500, fontSize: 14 }}>
-                Email
+                Usuário ou E-mail
               </label>
               <input
-                type="email"
+                type="text"
                 className="input"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder="admin@interativa.local"
+                placeholder="Admin"
                 required
                 autoFocus
                 style={{ width: '100%' }}

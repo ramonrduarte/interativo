@@ -206,7 +206,7 @@ async function initDb() {
     }
 
     console.log('[db] Empresa e usuário padrão criados')
-    console.log('[db]   Email: admin@interativa.local')
+    console.log('[db]   Usuário: Admin  (ou admin@interativa.local)')
     console.log('[db]   Senha: admin123  ← TROQUE após o primeiro login')
   }
 

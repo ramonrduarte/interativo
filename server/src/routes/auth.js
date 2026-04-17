@@ -10,10 +10,13 @@ const router = express.Router()
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body
-    if (!email || !password) return res.status(400).json({ error: 'Email e senha são obrigatórios' })
+    if (!email || !password) return res.status(400).json({ error: 'Usuário e senha são obrigatórios' })
 
-    const user = await db.users.findOne(u => u.email === email.toLowerCase().trim())
-    if (!user) return res.status(401).json({ error: 'Email ou senha incorretos' })
+    const identifier = email.trim()
+    const user = await db.users.findOne(u =>
+      u.email === identifier.toLowerCase() || u.name === identifier
+    )
+    if (!user) return res.status(401).json({ error: 'Usuário ou senha incorretos' })
 
     const ok = await bcrypt.compare(password, user.password_hash)
     if (!ok) return res.status(401).json({ error: 'Email ou senha incorretos' })
