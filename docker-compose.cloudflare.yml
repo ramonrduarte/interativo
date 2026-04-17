@@ -1,0 +1,56 @@
+services:
+  interativa:
+    image: interativa:latest
+    build: .
+    pull_policy: build
+    container_name: interativa
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_URL=postgresql://interativa:${DB_PASSWORD}@postgres:5432/interativa
+      - TZ=America/Sao_Paulo
+    volumes:
+      - interativa_uploads:/app/uploads
+    networks:
+      - interativa_net
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: interativa_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=interativa
+      - POSTGRES_USER=interativa
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - interativa_db:/var/lib/postgresql/data
+    networks:
+      - interativa_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U interativa"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+volumes:
+  interativa_uploads:
+  interativa_db:
+
+networks:
+  interativa_net:
+    driver: bridge
