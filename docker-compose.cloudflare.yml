@@ -14,8 +14,8 @@ services:
       - TZ=America/Sao_Paulo
     volumes:
       - interativa_uploads:/app/uploads
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    networks:
+      - network_public
     deploy:
       resources:
         limits:
@@ -24,3 +24,7 @@ services:
 
 volumes:
   interativa_uploads:
+
+networks:
+  network_public:
+    external: true
