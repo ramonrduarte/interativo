@@ -4,6 +4,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Required to run a foreground service (API 28+) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Required for foreground service type "dataSync" on API 34+ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
         android:allowBackup="false"
@@ -39,6 +43,15 @@
                 <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!--
+            WatchdogService: keeps the app alive.
+            foregroundServiceType="dataSync" is required when targeting API 34+.
+        -->
+        <service
+            android:name=".WatchdogService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
 
     </application>
 

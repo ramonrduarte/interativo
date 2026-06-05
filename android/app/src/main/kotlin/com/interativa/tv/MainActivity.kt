@@ -1,12 +1,17 @@
 package com.interativa.tv
 
 import android.annotation.SuppressLint
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
+import android.os.Process
+import android.os.SystemClock
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
@@ -46,6 +51,8 @@ class MainActivity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
         acquireWakeLock()
         hideSystemUI()
+        installCrashHandler()
+        startWatchdog()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             WebView.enableSlowWholeDocumentDraw()
@@ -59,7 +66,7 @@ class MainActivity : AppCompatActivity() {
         val token = prefs().getString(KEY_TOKEN, null)
 
         if (!url.isNullOrBlank() && !token.isNullOrBlank()) {
-            loadTv(url, token)
+            if (checkWebView()) loadTv(url, token)
         } else {
             showLoginScreen()
         }
@@ -365,8 +372,133 @@ class MainActivity : AppCompatActivity() {
         // else: bloqueia o botão voltar (kiosk mode)
     }
 
+    override fun onResume() {
+        super.onResume()
+        WatchdogService.isMainActivityAlive = true
+    }
+
+    override fun onPause() {
+        super.onPause()
+        WatchdogService.isMainActivityAlive = false
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        WatchdogService.isMainActivityAlive = false
         wakeLock?.let { if (it.isHeld) it.release() }
+    }
+
+    // ── Watchdog ─────────────────────────────────────────────────────────────
+
+    private fun startWatchdog() {
+        val intent = Intent(this, WatchdogService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+    }
+
+    // ── Crash handler ─────────────────────────────────────────────────────────
+
+    private fun installCrashHandler() {
+        Thread.setDefaultUncaughtExceptionHandler { _, throwable ->
+            android.util.Log.e("InterativaTV", "Crash não tratado", throwable)
+            try {
+                val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_ONE_SHOT
+                else PendingIntent.FLAG_ONE_SHOT
+
+                val restartIntent = PendingIntent.getActivity(
+                    this, 0,
+                    Intent(this, MainActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    },
+                    flags
+                )
+                (getSystemService(Context.ALARM_SERVICE) as AlarmManager).set(
+                    AlarmManager.ELAPSED_REALTIME,
+                    SystemClock.elapsedRealtime() + 2_000L,
+                    restartIntent
+                )
+            } catch (_: Exception) {}
+            Process.killProcess(Process.myPid())
+        }
+    }
+
+    // ── WebView version check ─────────────────────────────────────────────────
+
+    private fun checkWebView(): Boolean {
+        val majorVersion = try {
+            val versionName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WebView.getCurrentWebViewPackage()?.versionName
+            } else {
+                val pm = packageManager
+                (try { pm.getPackageInfo("com.google.android.webview", 0) }
+                catch (_: Exception) {
+                    try { pm.getPackageInfo("com.android.webview", 0) }
+                    catch (_: Exception) { null }
+                })?.versionName
+            }
+            versionName?.split(".")?.firstOrNull()?.toIntOrNull() ?: 99
+        } catch (_: Exception) { 99 }
+
+        return if (majorVersion < 70) {
+            showWebViewWarning(majorVersion)
+            false
+        } else true
+    }
+
+    private fun showWebViewWarning(detectedVersion: Int) {
+        val dp = { v: Int ->
+            TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), resources.displayMetrics).toInt()
+        }
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity     = Gravity.CENTER
+            setBackgroundColor(Color.parseColor("#0a0c10"))
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            setPadding(dp(32), 0, dp(32), 0)
+        }
+
+        root.addView(TextView(this).apply {
+            text     = "⚠ Navegador desatualizado"
+            textSize = 22f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.parseColor("#f6a623"))
+            gravity  = Gravity.CENTER
+            setPadding(0, 0, 0, dp(16))
+        })
+
+        root.addView(TextView(this).apply {
+            text = "Versão detectada: Chrome $detectedVersion\n" +
+                   "Versão mínima necessária: Chrome 70\n\n" +
+                   "Acesse a Play Store, pesquise por\n\"Android System WebView\" e atualize.\n\n" +
+                   "Se o aparelho não tiver Play Store,\natualize o sistema ou troque o dispositivo."
+            textSize = 15f
+            setTextColor(Color.parseColor("#aaaaaa"))
+            gravity  = Gravity.CENTER
+            setPadding(0, 0, 0, dp(28))
+        })
+
+        val btnAnyway = Button(this).apply {
+            text = "Tentar mesmo assim"
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#374151"))
+            textSize     = 14f
+            layoutParams = LinearLayout.LayoutParams(dp(280), dp(48)).apply { bottomMargin = dp(12) }
+        }
+        root.addView(btnAnyway)
+
+        setContentView(root)
+
+        btnAnyway.setOnClickListener {
+            setContentView(webView)
+            val url   = prefs().getString(KEY_URL,   null)
+            val token = prefs().getString(KEY_TOKEN, null)
+            if (!url.isNullOrBlank() && !token.isNullOrBlank()) loadTv(url, token)
+            else showLoginScreen()
+        }
     }
 }
