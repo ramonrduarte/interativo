@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react'
 import Hls from 'hls.js'
 
-export default function ContentRenderer({ item, containerHeight }) {
+export default function ContentRenderer({ item, containerHeight, onVideoEnd }) {
   if (!item) return <div style={{ background: '#111', width: '100%', height: '100%' }} />
 
   switch (item.type) {
     case 'image':        return <ImageContent item={item} />
-    case 'video':        return <VideoContent item={item} />
+    case 'video':        return <VideoContent item={item} onVideoEnd={onVideoEnd} />
     case 'youtube':      return <YoutubeContent item={item} />
     case 'webpage':      return <WebpageContent item={item} />
     case 'text':         return <TextContent item={item} />
@@ -21,7 +21,7 @@ function ImageContent({ item }) {
   return <img src={item.url} alt={item.name} className="content-image" loading="lazy" style={{ objectFit: item.objectFit || 'cover' }} />
 }
 
-function VideoContent({ item }) {
+function VideoContent({ item, onVideoEnd }) {
   const ref = useRef()
   useEffect(() => {
     if (ref.current) {
@@ -35,10 +35,11 @@ function VideoContent({ item }) {
       className="content-video"
       autoPlay
       muted
-      loop
+      loop={!onVideoEnd}
       playsInline
       src={item.url}
       style={{ objectFit: item.objectFit || 'cover' }}
+      onEnded={onVideoEnd || undefined}
     />
   )
 }

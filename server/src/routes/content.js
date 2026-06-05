@@ -44,9 +44,12 @@ module.exports = function contentRoutes(_io) {
       const type     = req.file.mimetype.startsWith('image/') ? 'image' : 'video'
       const name     = (req.body.name || req.file.originalname).replace(/\.[^.]+$/, '')
       const object_fit = req.body.object_fit || 'cover'
+      const video_duration = type === 'video' && req.body.video_duration
+        ? Math.round(Number(req.body.video_duration))
+        : null
       res.json(await db.media.insert({
         name, type, filename, mime_type: req.file.mimetype, file_size: req.file.size,
-        object_fit, company_id: req.user.company_id,
+        object_fit, video_duration, company_id: req.user.company_id,
       }))
     } catch (e) { res.status(500).json({ error: e.message }) }
   })

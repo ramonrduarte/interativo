@@ -33,17 +33,25 @@ export default function LayoutEngine({ config }) {
     setCurrentIndex(0)
   }, [slides.map(s => s.id).join(',')])
 
-  // Advance to next slide after duration
+  function advanceSlide() {
+    clearTimeout(timerRef.current)
+    setCurrentIndex(prev => (prev + 1) % slidesRef.current.length)
+  }
+
+  // Advance to next slide after duration (or via video ended callback)
   useEffect(() => {
     if (!slides || slides.length === 0) return
 
     const slide = slides[currentIndex] || slides[0]
-    const duration = (slide?.duration || 10) * 1000
 
     clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(() => {
-      setCurrentIndex(prev => (prev + 1) % slidesRef.current.length)
-    }, duration)
+
+    if (slide?.useVideoDuration) {
+      // Safety fallback: advance after duration + 3s in case ended never fires
+      timerRef.current = setTimeout(advanceSlide, ((slide.duration || 10) + 3) * 1000)
+    } else {
+      timerRef.current = setTimeout(advanceSlide, (slide?.duration || 10) * 1000)
+    }
 
     return () => clearTimeout(timerRef.current)
   }, [currentIndex, slides.length])
@@ -69,7 +77,12 @@ export default function LayoutEngine({ config }) {
         style={{ height: contentHeight }}
       >
         {zones.map((z, i) => (
-          <ZoneRenderer key={`${slide.id}-${i}`} item={slide.zones?.[i] || null} zoneLabel={z.label} />
+          <ZoneRenderer
+            key={`${slide.id}-${i}`}
+            item={slide.zones?.[i] || null}
+            zoneLabel={z.label}
+            onVideoEnd={slide.useVideoDuration ? advanceSlide : undefined}
+          />
         ))}
       </div>
 

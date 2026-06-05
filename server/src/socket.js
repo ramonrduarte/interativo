@@ -39,16 +39,18 @@ async function getSlidesForPlaylistId(playlistId) {
       const media = await db.media.get(mediaId)
       if (!media) continue
       zones[Number(zoneIdx)] = {
-        type:      media.type,
-        url:       media.filename ? `/uploads/${media.filename}` : (media.url || null),
-        content:   media.content || null,
-        name:      media.name,
-        objectFit: media.object_fit || 'cover',
+        type:          media.type,
+        url:           media.filename ? `/uploads/${media.filename}` : (media.url || null),
+        content:       media.content || null,
+        name:          media.name,
+        objectFit:     media.object_fit || 'cover',
+        videoDuration: media.video_duration || null,
       }
     }
     slides.push({
-      id:       slide.id,
-      duration: slide.duration || 10,
+      id:               slide.id,
+      duration:         slide.duration || 10,
+      useVideoDuration: slide.use_video_duration || false,
       layout: {
         template: layout?.template || 'fullscreen',
         zones:    layout?.config?.zones || [{ id: 0, label: 'Principal' }],
@@ -110,8 +112,9 @@ function initSocket(server) {
 
     // ── Pairing mode ──────────────────────────────────────────────────────────
     if (pairing) {
-      const code = pairing.toUpperCase()
-      pairingRegistry.set(code, socket.id)
+      const code         = pairing.toUpperCase()
+      const companyToken = (socket.handshake.query.c || '').toUpperCase()
+      pairingRegistry.set(code, { socketId: socket.id, companyToken })
       socket.on('disconnect', () => pairingRegistry.delete(code))
       return
     }
@@ -159,10 +162,14 @@ function initSocket(server) {
 // ---------------------------------------------------------------------------
 // Called by POST /api/pair
 // ---------------------------------------------------------------------------
+function getPairingEntry(code) {
+  return pairingRegistry.get(code.toUpperCase()) || null
+}
+
 function completePairing(code, screenToken) {
-  const socketId = pairingRegistry.get(code.toUpperCase())
-  if (!socketId || !io) return false
-  io.to(socketId).emit('pairing:success', { token: screenToken })
+  const entry = pairingRegistry.get(code.toUpperCase())
+  if (!entry || !io) return false
+  io.to(entry.socketId).emit('pairing:success', { token: screenToken })
   pairingRegistry.delete(code.toUpperCase())
   return true
 }
@@ -179,4 +186,4 @@ async function pushToScreen(screenId) {
   return true
 }
 
-module.exports = { initSocket, pushToScreen, completePairing, registry, pairingRegistry }
+module.exports = { initSocket, pushToScreen, completePairing, getPairingEntry, registry, pairingRegistry }

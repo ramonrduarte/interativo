@@ -14,9 +14,10 @@ function PairingScreen() {
   const [code] = useState(() => generateCode())
   const [status, setStatus] = useState('waiting') // waiting | success
   const socketRef = useRef(null)
+  const companyToken = new URLSearchParams(window.location.search).get('c') || ''
 
   useEffect(() => {
-    socketRef.current = connectPairing(code, token => {
+    socketRef.current = connectPairing(code, companyToken, token => {
       setStatus('success')
       setToken(token)
       // Small delay so user sees the success message, then reload to connect normally

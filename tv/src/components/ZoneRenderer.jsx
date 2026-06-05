@@ -1,7 +1,7 @@
 import React from 'react'
 import ContentRenderer from './ContentRenderer.jsx'
 
-export default function ZoneRenderer({ item, zoneLabel }) {
+export default function ZoneRenderer({ item, zoneLabel, onVideoEnd }) {
   if (!item) {
     return (
       <div style={{
@@ -16,7 +16,7 @@ export default function ZoneRenderer({ item, zoneLabel }) {
 
   return (
     <div className="layout-zone" style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <ContentRenderer key={item.type + '-' + (item.url || item.content)} item={item} />
+      <ContentRenderer key={item.type + '-' + (item.url || item.content)} item={item} onVideoEnd={onVideoEnd} />
     </div>
   )
 }

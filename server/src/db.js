@@ -175,6 +175,11 @@ const allSeeds = [
 // initDb — run migrations + seed layouts + seed default company/user.
 // Must be awaited before server starts.
 // ---------------------------------------------------------------------------
+const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+function makeToken(len = 8) {
+  return Array.from({ length: len }, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join('')
+}
+
 async function initDb() {
   await knex.migrate.latest()
 
@@ -189,7 +194,7 @@ async function initDb() {
   const companies = await db.companies.all()
   if (companies.length === 0) {
     const bcrypt = require('bcryptjs')
-    const company = await db.companies.insert({ name: 'Principal' })
+    const company = await db.companies.insert({ name: 'Principal', pairing_token: makeToken() })
     const hash = await bcrypt.hash('admin123', 10)
     await db.users.insert({
       company_id:    company.id,

@@ -48,19 +48,47 @@ function SlidePreview({ slide, layouts, media }) {
   )
 }
 
+function fmtDuration(totalSeconds) {
+  if (!totalSeconds || totalSeconds <= 0) return '0s'
+  const h = Math.floor(totalSeconds / 3600)
+  const m = Math.floor((totalSeconds % 3600) / 60)
+  const s = Math.round(totalSeconds % 60)
+  if (h > 0) return `${h}h ${m}m ${s}s`
+  if (m > 0) return `${m}m ${s}s`
+  return `${s}s`
+}
+
 // Slide editor form inside a card
 function SlideEditor({ slide, layouts, media, onSave, onClose }) {
   const [layoutId, setLayoutId] = useState(slide.layout_id ? String(slide.layout_id) : '')
   const [zoneContent, setZoneContent] = useState(slide.zone_content || {})
   const [duration, setDuration] = useState(slide.duration || 10)
+  const [useVideoDuration, setUseVideoDuration] = useState(slide.use_video_duration || false)
   const [saving, setSaving] = useState(false)
 
   const selectedLayout = layouts.find(l => l.id == layoutId)
   const zones = selectedLayout?.config?.zones || []
 
+  // Find the first video with a known duration among selected zones
+  const videoWithDuration = React.useMemo(() => {
+    for (const mediaId of Object.values(zoneContent)) {
+      if (!mediaId) continue
+      const m = media.find(x => x.id == mediaId)
+      if (m?.type === 'video' && m.video_duration) return m
+    }
+    return null
+  }, [zoneContent, media])
+
+  // When toggling off, reset to stored duration
+  function handleUseVideoDuration(val) {
+    setUseVideoDuration(val)
+    if (!val && videoWithDuration) setDuration(slide.duration || 10)
+  }
+
   function handleLayoutChange(lid) {
     setLayoutId(lid)
-    setZoneContent({}) // reset zones when layout changes
+    setZoneContent({})
+    setUseVideoDuration(false)
   }
 
   function setZone(zoneIdx, mediaId) {
@@ -70,10 +98,14 @@ function SlideEditor({ slide, layouts, media, onSave, onClose }) {
   async function handleSave() {
     setSaving(true)
     try {
+      const effectiveDuration = useVideoDuration && videoWithDuration
+        ? Math.round(videoWithDuration.video_duration)
+        : Number(duration)
       await onSave({
         layout_id: layoutId ? Number(layoutId) : null,
         zone_content: zoneContent,
-        duration: Number(duration),
+        duration: effectiveDuration,
+        use_video_duration: useVideoDuration && !!videoWithDuration,
       })
       onClose()
     } catch (e) { alert(e.message) }
@@ -129,7 +161,7 @@ function SlideEditor({ slide, layouts, media, onSave, onClose }) {
                     >
                       <option value="">— Nenhum conteúdo —</option>
                       {media.map(m => (
-                        <option key={m.id} value={m.id}>{TYPE_ICONS[m.type]} {m.name}</option>
+                        <option key={m.id} value={m.id}>{TYPE_ICONS[m.type]} {m.name}{m.type === 'video' && m.video_duration ? ` (${fmtDuration(m.video_duration)})` : ''}</option>
                       ))}
                     </select>
                   </div>
@@ -140,12 +172,58 @@ function SlideEditor({ slide, layouts, media, onSave, onClose }) {
 
           {/* Duration */}
           <div className="form-group">
-            <label className="form-label">Duração do slide (segundos)</label>
-            <input
-              type="number" className="form-control" min={1} value={duration}
-              onChange={e => setDuration(e.target.value)}
-              style={{ maxWidth: 120 }}
-            />
+            <label className="form-label">Duração do slide</label>
+
+            {videoWithDuration && (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => handleUseVideoDuration(false)}
+                  style={{
+                    flex: 1, padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)',
+                    background: !useVideoDuration ? 'var(--accent)' : 'var(--bg)',
+                    color: !useVideoDuration ? '#fff' : 'var(--text)',
+                    cursor: 'pointer', fontWeight: 600, fontSize: 13,
+                  }}
+                >
+                  Tempo personalizado
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleUseVideoDuration(true)}
+                  style={{
+                    flex: 1, padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)',
+                    background: useVideoDuration ? 'var(--accent)' : 'var(--bg)',
+                    color: useVideoDuration ? '#fff' : 'var(--text)',
+                    cursor: 'pointer', fontWeight: 600, fontSize: 13,
+                  }}
+                >
+                  Reprodução completa do vídeo
+                </button>
+              </div>
+            )}
+
+            {useVideoDuration && videoWithDuration ? (
+              <div style={{
+                padding: '10px 14px', background: 'rgba(45,110,245,.08)',
+                border: '1px solid rgba(45,110,245,.25)', borderRadius: 8,
+                fontSize: 13, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <span>🎬</span>
+                <span>
+                  O slide vai durar <strong>{fmtDuration(videoWithDuration.video_duration)}</strong> — a duração completa de <em>{videoWithDuration.name}</em>
+                </span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <input
+                  type="number" className="form-control" min={1} value={duration}
+                  onChange={e => setDuration(e.target.value)}
+                  style={{ maxWidth: 120 }}
+                />
+                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>segundos</span>
+              </div>
+            )}
           </div>
         </div>
         <div className="modal-footer">
@@ -283,6 +361,14 @@ export default function Playlists() {
                   <div>
                     <h3 style={{ fontWeight: 700 }}>{selected.name}</h3>
                     {selected.description && <p className="text-muted text-sm">{selected.description}</p>}
+                    {selected.slides?.length > 0 && (() => {
+                      const total = selected.slides.reduce((acc, s) => acc + (s.duration || 10), 0)
+                      return (
+                        <p className="text-sm" style={{ marginTop: 4, color: 'var(--accent)', fontWeight: 600 }}>
+                          ⏱ Duração total: {fmtDuration(total)} · {selected.slides.length} slide{selected.slides.length !== 1 ? 's' : ''}
+                        </p>
+                      )
+                    })()}
                   </div>
                   <button className="btn btn-primary btn-sm" onClick={() => setEditingSlide('new')}>+ Novo Slide</button>
                 </div>
@@ -316,7 +402,10 @@ export default function Playlists() {
                       <div>
                         <div style={{ fontWeight: 600, fontSize: 13 }}>{layout?.name || 'Layout não definido'}</div>
                         <div className="text-sm text-muted" style={{ marginTop: 2 }}>
-                          {slide.duration}s
+                          {slide.use_video_duration
+                            ? <span style={{ color: 'var(--accent)' }}>🎬 {fmtDuration(slide.duration)} (vídeo completo)</span>
+                            : `${slide.duration}s`
+                          }
                           {' · '}
                           {Object.keys(slide.zone_content || {}).filter(k => slide.zone_content[k]).length} zona(s) com conteúdo
                         </div>

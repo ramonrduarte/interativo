@@ -72,6 +72,9 @@ export const api = {
   updateTicker: (id, data) => req('PUT', `/tickers/${id}`, data),
   deleteTicker: (id) => req('DELETE', `/tickers/${id}`),
 
+  // Company
+  getCompany: () => req('GET', '/company'),
+
   // Pairing
   pairTv: (code, screen_id) => req('POST', '/pair', { code, screen_id }),
   getPairingWaiting: () => req('GET', '/pair/waiting'),

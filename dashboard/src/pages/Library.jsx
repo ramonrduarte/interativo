@@ -24,6 +24,20 @@ export default function Library() {
 
   const filtered = filter === 'all' ? items : items.filter(i => i.type === filter)
 
+  function getVideoDuration(file) {
+    return new Promise(resolve => {
+      const url = URL.createObjectURL(file)
+      const video = document.createElement('video')
+      video.preload = 'metadata'
+      video.onloadedmetadata = () => {
+        URL.revokeObjectURL(url)
+        resolve(isFinite(video.duration) ? video.duration : null)
+      }
+      video.onerror = () => { URL.revokeObjectURL(url); resolve(null) }
+      video.src = url
+    })
+  }
+
   async function handleFileUpload(files, objectFit = 'cover') {
     if (!files || files.length === 0) return
     for (const file of files) {
@@ -32,6 +46,10 @@ export default function Library() {
       fd.append('file', file)
       fd.append('name', file.name.replace(/\.[^.]+$/, ''))
       fd.append('object_fit', objectFit)
+      if (file.type.startsWith('video/')) {
+        const dur = await getVideoDuration(file)
+        if (dur != null) fd.append('video_duration', String(dur))
+      }
       // Manual XHR for progress
       await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest()

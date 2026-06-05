@@ -24,7 +24,7 @@ module.exports = function playlistRoutes(_io) {
         for (const [zi, mediaId] of Object.entries(zoneContent)) {
           if (!mediaId) continue
           const media = await db.media.get(mediaId)
-          if (media) zones[zi] = { media_id: mediaId, name: media.name, type: media.type }
+          if (media) zones[zi] = { media_id: mediaId, name: media.name, type: media.type, video_duration: media.video_duration || null }
         }
         return {
           ...slide,
@@ -85,15 +85,16 @@ module.exports = function playlistRoutes(_io) {
     try {
       const existing = await db.playlists.findByIdAndCompany(req.params.id, req.user.company_id)
       if (!existing) return res.status(404).json({ error: 'Não encontrado' })
-      const { layout_id, zone_content = {}, duration = 10 } = req.body
+      const { layout_id, zone_content = {}, duration = 10, use_video_duration = false } = req.body
       const slides = await db.playlistSlides.where(s => s.playlist_id == req.params.id)
       const maxPos = slides.length > 0 ? Math.max(...slides.map(s => s.position)) : -1
       const slide = await db.playlistSlides.insert({
-        playlist_id: Number(req.params.id),
-        layout_id:   layout_id ? Number(layout_id) : null,
+        playlist_id:        Number(req.params.id),
+        layout_id:          layout_id ? Number(layout_id) : null,
         zone_content,
-        position:    maxPos + 1,
-        duration:    Number(duration),
+        position:           maxPos + 1,
+        duration:           Number(duration),
+        use_video_duration: Boolean(use_video_duration),
       })
       await pushScreensUsingPlaylist(req.params.id)
       res.json(slide)
@@ -117,13 +118,14 @@ module.exports = function playlistRoutes(_io) {
     try {
       const existing = await db.playlists.findByIdAndCompany(req.params.id, req.user.company_id)
       if (!existing) return res.status(404).json({ error: 'Não encontrado' })
-      const { layout_id, zone_content, duration } = req.body
+      const { layout_id, zone_content, duration, use_video_duration } = req.body
       const slide = await db.playlistSlides.get(req.params.slideId)
       if (!slide || slide.playlist_id != req.params.id) return res.status(404).json({ error: 'Slide não encontrado' })
       const updated = await db.playlistSlides.update(req.params.slideId, {
-        layout_id:    layout_id    !== undefined ? (layout_id ? Number(layout_id) : null)  : slide.layout_id,
-        zone_content: zone_content !== undefined ? zone_content                             : slide.zone_content,
-        duration:     duration     !== undefined ? Number(duration)                         : slide.duration,
+        layout_id:          layout_id          !== undefined ? (layout_id ? Number(layout_id) : null) : slide.layout_id,
+        zone_content:       zone_content       !== undefined ? zone_content                            : slide.zone_content,
+        duration:           duration           !== undefined ? Number(duration)                        : slide.duration,
+        use_video_duration: use_video_duration !== undefined ? Boolean(use_video_duration)             : slide.use_video_duration,
       })
       await pushScreensUsingPlaylist(req.params.id)
       res.json(updated)

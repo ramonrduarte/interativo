@@ -3,6 +3,45 @@ import { api } from '../api.js'
 
 const EMPTY_FORM = { name: '', playlist_group_id: '', playlist_id: '', ticker_id: '', orientation: 'landscape' }
 
+function TvLinkBanner({ pairingToken }) {
+  const [copied, setCopied] = useState(false)
+  const tvUrl = pairingToken
+    ? `${window.location.origin}/tv/?c=${pairingToken}`
+    : `${window.location.origin}/tv/`
+
+  function copy() {
+    navigator.clipboard.writeText(tvUrl).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <div style={{
+      background: '#f0f7ff', border: '1px solid #bfdbfe', borderRadius: 10,
+      padding: '14px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 14,
+    }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 600, fontSize: 14, color: '#1e40af', marginBottom: 4 }}>
+          Link de acesso da TV
+        </div>
+        <div style={{ fontSize: 13, color: '#555', marginBottom: 6 }}>
+          Abra este link no navegador da TV. Cada empresa tem seu próprio link — isso garante que somente suas telas possam ser pareadas.
+        </div>
+        <div style={{
+          fontFamily: 'monospace', fontSize: 13, background: '#e0f2fe',
+          padding: '6px 10px', borderRadius: 6, color: '#0c4a6e', wordBreak: 'break-all',
+        }}>
+          {tvUrl}
+        </div>
+      </div>
+      <button className="btn btn-secondary btn-sm" onClick={copy} style={{ whiteSpace: 'nowrap' }}>
+        {copied ? '✓ Copiado' : 'Copiar link'}
+      </button>
+    </div>
+  )
+}
+
 // ── Pairing Modal ──────────────────────────────────────────────────────────
 function PairModal({ screens, onClose }) {
   const [code, setCode]         = useState('')
@@ -114,13 +153,15 @@ export default function Screens() {
   const [showPair, setShowPair]       = useState(false)
   const [form, setForm]               = useState(EMPTY_FORM)
   const [loading, setLoading]         = useState(false)
+  const [pairingToken, setPairingToken] = useState('')
 
   async function load() {
     try {
-      const [s, p, g, t] = await Promise.all([
-        api.getScreens(), api.getPlaylists(), api.getPlaylistGroups(), api.getTickers(),
+      const [s, p, g, t, company] = await Promise.all([
+        api.getScreens(), api.getPlaylists(), api.getPlaylistGroups(), api.getTickers(), api.getCompany(),
       ])
       setScreens(s); setPlaylists(p); setGroups(g); setTickers(t)
+      if (company?.pairing_token) setPairingToken(company.pairing_token)
     } catch (e) { console.error('Erro ao carregar:', e) }
   }
 
@@ -184,6 +225,8 @@ export default function Screens() {
           <button className="btn btn-primary" onClick={openCreate}>+ Nova Tela</button>
         </div>
       </div>
+
+      <TvLinkBanner pairingToken={pairingToken} />
 
       {screens.length === 0 ? (
         <div className="empty-state">

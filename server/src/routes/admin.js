@@ -6,6 +6,11 @@ const requireSuperadmin = require('../middleware/superadmin')
 
 const SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-prod'
 
+const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+function makeToken(len = 8) {
+  return Array.from({ length: len }, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join('')
+}
+
 const router = express.Router()
 router.use(requireSuperadmin)
 
@@ -40,7 +45,7 @@ router.post('/companies', async (req, res) => {
     const existing = await db.users.findOne(u => u.email === admin_email.toLowerCase().trim())
     if (existing) return res.status(409).json({ error: 'Já existe um usuário com esse email' })
 
-    const company      = await db.companies.insert({ name: company_name })
+    const company      = await db.companies.insert({ name: company_name, pairing_token: makeToken() })
     const password_hash = await bcrypt.hash(admin_password, 10)
     const user = await db.users.insert({
       company_id:    company.id,

@@ -3,7 +3,7 @@ const { createServer } = require('http')
 const cors        = require('cors')
 const path        = require('path')
 const { db, initDb } = require('./db')
-const { initSocket, pushToScreen, completePairing, registry, pairingRegistry } = require('./socket')
+const { initSocket, pushToScreen, completePairing, getPairingEntry, registry, pairingRegistry } = require('./socket')
 const { startScheduler, getDebugState } = require('./scheduler')
 const { isScheduleActiveNow } = require('./scheduleUtils')
 const requireAuth = require('./middleware/auth')
@@ -29,16 +29,6 @@ async function main() {
   // Public API — auth routes (no JWT required)
   app.use('/api/auth', require('./routes/auth'))
 
-  // Public endpoint — TV pairing (TV has no JWT)
-  app.post('/api/pair', async (req, res) => {
-    const { code, screen_id } = req.body
-    if (!code || !screen_id) return res.status(400).json({ error: 'code e screen_id são obrigatórios' })
-    const screen = await db.screens.get(screen_id)
-    if (!screen) return res.status(404).json({ error: 'Tela não encontrada' })
-    const ok = completePairing(code, screen.token)
-    if (!ok) return res.status(404).json({ error: 'Código não encontrado ou expirado. A TV está com a tela de pareamento aberta?' })
-    res.json({ ok: true, screen_name: screen.name })
-  })
 
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true, connectedScreens: registry.size, uptime: process.uptime() })
@@ -87,10 +77,52 @@ async function main() {
   // Protected API — all routes below require JWT
   app.use('/api', requireAuth)
 
-  app.get('/api/pair/waiting', (_req, res) => {
-    const waiting = []
-    pairingRegistry.forEach((_socketId, code) => waiting.push({ code }))
-    res.json(waiting)
+  // Pair TV — requires auth; validates TV's company token matches the logged-in user's company
+  app.post('/api/pair', async (req, res) => {
+    try {
+      const { code, screen_id } = req.body
+      if (!code || !screen_id) return res.status(400).json({ error: 'code e screen_id são obrigatórios' })
+
+      const entry = getPairingEntry(code)
+      if (!entry) return res.status(404).json({ error: 'Código não encontrado ou expirado. A TV está com a tela de pareamento aberta?' })
+
+      if (entry.companyToken) {
+        const company = await db.companies.get(req.user.company_id)
+        if (!company?.pairing_token || entry.companyToken !== company.pairing_token.toUpperCase()) {
+          return res.status(403).json({ error: 'Este código pertence a outra empresa. Certifique-se de que a TV acessou o link correto.' })
+        }
+      }
+
+      const screen = await db.screens.findByIdAndCompany(screen_id, req.user.company_id)
+      if (!screen) return res.status(404).json({ error: 'Tela não encontrada' })
+
+      const ok = completePairing(code, screen.token)
+      if (!ok) return res.status(404).json({ error: 'Código não encontrado ou expirado.' })
+      res.json({ ok: true, screen_name: screen.name })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
+  // Company info for current user
+  app.get('/api/company', async (req, res) => {
+    try {
+      const company = await db.companies.get(req.user.company_id)
+      if (!company) return res.status(404).json({ error: 'Empresa não encontrada' })
+      res.json(company)
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
+  app.get('/api/pair/waiting', async (req, res) => {
+    try {
+      const company = await db.companies.get(req.user.company_id)
+      const companyToken = company?.pairing_token?.toUpperCase() || ''
+      const waiting = []
+      pairingRegistry.forEach((entry, code) => {
+        if (!entry.companyToken || !companyToken || entry.companyToken === companyToken) {
+          waiting.push({ code })
+        }
+      })
+      res.json(waiting)
+    } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
   app.get('/api/status', (_req, res) => {
