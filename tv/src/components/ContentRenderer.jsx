@@ -21,13 +21,12 @@ function ImageContent({ item }) {
   return <img src={item.url} alt={item.name} className="content-image" loading="lazy" style={{ objectFit: item.objectFit || 'cover' }} />
 }
 
-function VideoContent({ item, onVideoEnd }) {
+const VideoContent = React.memo(function VideoContent({ item, onVideoEnd }) {
   const ref = useRef()
   useEffect(() => {
-    if (ref.current) {
-      ref.current.src = item.url
-      ref.current.play().catch(() => {})
-    }
+    if (!ref.current) return
+    ref.current.src = item.url
+    ref.current.play().catch(() => {})
   }, [item.url])
   return (
     <video
@@ -37,12 +36,11 @@ function VideoContent({ item, onVideoEnd }) {
       muted
       loop={!onVideoEnd}
       playsInline
-      src={item.url}
       style={{ objectFit: item.objectFit || 'cover' }}
       onEnded={onVideoEnd || undefined}
     />
   )
-}
+}, (prev, next) => prev.item.url === next.item.url && prev.item.objectFit === next.item.objectFit && prev.onVideoEnd === next.onVideoEnd)
 
 function YoutubeContent({ item }) {
   // Normalize to youtube-nocookie.com (fewer embed restrictions) and ensure needed params

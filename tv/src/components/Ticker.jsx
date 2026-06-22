@@ -1,6 +1,6 @@
 import React from 'react'
 
-export default function Ticker({ ticker }) {
+function Ticker({ ticker }) {
   if (!ticker) return null
 
   const messages = ticker?.messages?.length
@@ -33,3 +33,21 @@ export default function Ticker({ ticker }) {
     </div>
   )
 }
+
+function tickerEqual(prev, next) {
+  const p = prev.ticker
+  const n = next.ticker
+  if (!p && !n) return true
+  if (!p || !n) return false
+  const pText = p.messages?.map(m => m.text).join('') ?? p.message ?? ''
+  const nText = n.messages?.map(m => m.text).join('') ?? n.message ?? ''
+  return (
+    pText === nText &&
+    p.bgColor === n.bgColor &&
+    p.color === n.color &&
+    p.fontSize === n.fontSize &&
+    p.speed === n.speed
+  )
+}
+
+export default React.memo(Ticker, tickerEqual)

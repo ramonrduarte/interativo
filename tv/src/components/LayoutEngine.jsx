@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import ZoneRenderer from './ZoneRenderer.jsx'
 import Ticker from './Ticker.jsx'
 
@@ -33,10 +33,10 @@ export default function LayoutEngine({ config }) {
     setCurrentIndex(0)
   }, [slides.map(s => s.id).join(',')])
 
-  function advanceSlide() {
+  const advanceSlide = useCallback(() => {
     clearTimeout(timerRef.current)
     setCurrentIndex(prev => (prev + 1) % slidesRef.current.length)
-  }
+  }, [])
 
   // Advance to next slide after duration (or via video ended callback)
   useEffect(() => {

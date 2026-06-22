@@ -49,6 +49,7 @@ html, body, #root {
 .ticker-inner {
   white-space: nowrap; display: inline-block;
   animation: ticker-scroll linear infinite;
+  will-change: transform;
 }
 @keyframes ticker-scroll {
   from { transform: translateX(100vw); }
@@ -80,7 +81,7 @@ html, body, #root {
 
 /* Content types */
 .content-image { width: 100%; height: 100%; object-fit: cover; display: block; }
-.content-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.content-video { width: 100%; height: 100%; object-fit: cover; display: block; will-change: transform; }
 .content-iframe { width: 100%; height: 100%; border: none; display: block; }
 
 .content-text {
