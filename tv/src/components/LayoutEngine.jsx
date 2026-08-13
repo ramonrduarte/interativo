@@ -68,7 +68,11 @@ export default function LayoutEngine({ config }) {
   const template = slide.layout?.template || 'fullscreen'
   const zones = slide.layout?.zones || [{ id: 0, label: 'Principal' }]
   const TICKER_H = 60
-  const contentHeight = ticker ? `calc(100vh - ${TICKER_H}px)` : '100vh'
+  // In portrait, the page is pre-rotated 90° — its CSS "height" axis becomes
+  // the final screen WIDTH after rotation, so the ticker (which ends up as a
+  // strip along the final width) must be reserved from 100vw, not 100vh.
+  const baseAxis = isPortrait ? '100vw' : '100vh'
+  const contentHeight = ticker ? `calc(${baseAxis} - ${TICKER_H}px)` : baseAxis
 
   return (
     <div className={`tv-root${isPortrait ? ' portrait' : ''}`}>
