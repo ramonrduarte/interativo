@@ -98,6 +98,8 @@ async function buildPayload(screenId) {
       color:    ticker.color,
       bgColor:  ticker.bg_color,
     } : null,
+    // Horário de funcionamento — lido pelo app Android nativo (a página /tv/ ignora)
+    power: screen.power_schedule || null,
   }
 }
 

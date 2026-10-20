@@ -26,7 +26,7 @@ const JSON_FIELDS = {
   playlists:             [],
   playlist_slides:       ['zone_content'],
   tickers:               ['messages'],
-  screens:               [],
+  screens:               ['power_schedule'],
   schedules:             ['days'],
   companies:             [],
   users:                 [],

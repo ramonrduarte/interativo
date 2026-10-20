@@ -3,6 +3,22 @@ const { v4: uuidv4 } = require('uuid')
 const { db } = require('../db')
 const { pushToScreen, registry } = require('../socket')
 
+// Valida o horário de funcionamento vindo do dashboard.
+// Retorna undefined (não altera), null (sem horário) ou { enabled, rules }.
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
+function normalizePower(input) {
+  if (input === undefined) return undefined
+  if (!input) return null
+  const rules = (Array.isArray(input.rules) ? input.rules : [])
+    .map(r => ({
+      days: [...new Set((r.days || []).map(Number).filter(d => d >= 0 && d <= 6))].sort(),
+      on:   String(r.on  || ''),
+      off:  String(r.off || ''),
+    }))
+    .filter(r => r.days.length > 0 && TIME_RE.test(r.on) && TIME_RE.test(r.off))
+  return { enabled: !!input.enabled && rules.length > 0, rules }
+}
+
 module.exports = function screenRoutes(_io) {
   const router = express.Router()
 
@@ -53,6 +69,7 @@ module.exports = function screenRoutes(_io) {
         playlist_group_id: playlist_group_id ? Number(playlist_group_id) : null,
         ticker_id:         ticker_id         ? Number(ticker_id)         : null,
         orientation:       orientation || 'landscape',
+        power_schedule:    normalizePower(req.body.power_schedule) ?? null,
         company_id:        req.user.company_id,
       })
       res.json(await enrichScreen(screen))
@@ -78,6 +95,7 @@ module.exports = function screenRoutes(_io) {
         playlist_group_id: playlist_group_id ? Number(playlist_group_id) : null,
         ticker_id:         ticker_id         ? Number(ticker_id)         : null,
         orientation:       orientation || 'landscape',
+        power_schedule:    normalizePower(req.body.power_schedule),
       })
       await pushToScreen(Number(req.params.id))
       res.json(await enrichScreen(s))

@@ -1,7 +1,88 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { api } from '../api.js'
 
-const EMPTY_FORM = { name: '', playlist_group_id: '', playlist_id: '', ticker_id: '', orientation: 'landscape' }
+const DEFAULT_RULE = { days: [1, 2, 3, 4, 5], on: '08:00', off: '18:00' }
+const EMPTY_POWER  = { enabled: false, rules: [DEFAULT_RULE] }
+const EMPTY_FORM   = { name: '', playlist_group_id: '', playlist_id: '', ticker_id: '', orientation: 'landscape', power: EMPTY_POWER }
+const DAY_LABELS   = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+
+function powerSummary(p) {
+  if (!p?.enabled || !p.rules?.length) return null
+  return p.rules.map(r => `${r.days.map(d => DAY_LABELS[d]).join(', ')} ${r.on}–${r.off}`).join(' · ')
+}
+
+// ── Horário de funcionamento (ligar/desligar) — usado pelo app Android ─────
+function PowerScheduleEditor({ value, onChange }) {
+  const power = value || EMPTY_POWER
+  const rules = power.rules?.length ? power.rules : [DEFAULT_RULE]
+
+  function setRule(i, patch) {
+    onChange({ ...power, rules: rules.map((r, idx) => idx === i ? { ...r, ...patch } : r) })
+  }
+  function toggleDay(i, d) {
+    const days = rules[i].days.includes(d) ? rules[i].days.filter(x => x !== d) : [...rules[i].days, d].sort()
+    setRule(i, { days })
+  }
+
+  return (
+    <div className="form-group">
+      <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={!!power.enabled}
+          onChange={e => onChange({ ...power, rules, enabled: e.target.checked })}
+        />
+        Horário de funcionamento
+      </label>
+      <small className="text-muted">
+        Fora destes horários a TV fica desligada (tela apagada). Funciona no app Android Interativa Player.
+      </small>
+
+      {power.enabled && (
+        <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
+          {rules.map((r, i) => (
+            <div key={i} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+                {DAY_LABELS.map((label, d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => toggleDay(i, d)}
+                    className={`btn btn-sm ${r.days.includes(d) ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ minWidth: 44 }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span className="text-sm text-muted">Liga</span>
+                <input type="time" className="form-control" style={{ width: 120 }}
+                  value={r.on} onChange={e => setRule(i, { on: e.target.value })} />
+                <span className="text-sm text-muted">Desliga</span>
+                <input type="time" className="form-control" style={{ width: 120 }}
+                  value={r.off} onChange={e => setRule(i, { off: e.target.value })} />
+                {rules.length > 1 && (
+                  <button type="button" className="btn btn-danger btn-sm" style={{ marginLeft: 'auto' }}
+                    onClick={() => onChange({ ...power, rules: rules.filter((_, idx) => idx !== i) })}>
+                    ✕
+                  </button>
+                )}
+              </div>
+              {r.off < r.on && (
+                <small className="text-muted">Desliga no dia seguinte (atravessa a meia-noite).</small>
+              )}
+            </div>
+          ))}
+          <button type="button" className="btn btn-secondary btn-sm" style={{ justifySelf: 'start' }}
+            onClick={() => onChange({ ...power, rules: [...rules, { days: [6], on: '08:00', off: '12:00' }] })}>
+            + Outro horário (ex.: sábado)
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function TvLinkBanner({ pairingToken }) {
   const [copied, setCopied] = useState(false)
@@ -176,6 +257,7 @@ export default function Screens() {
       playlist_id:       s.playlist_id       || '',
       ticker_id:         s.ticker_id         || '',
       orientation:       s.orientation       || 'landscape',
+      power:             s.power_schedule    || EMPTY_POWER,
     })
     setModal(s)
   }
@@ -192,6 +274,7 @@ export default function Screens() {
         playlist_id:       form.playlist_group_id ? null : (form.playlist_id || null),
         ticker_id:         form.ticker_id         || null,
         orientation:       form.orientation       || 'landscape',
+        power_schedule:    form.power?.enabled ? form.power : null,
       }
       if (modal === 'create') await api.createScreen(payload)
       else await api.updateScreen(modal.id, payload)
@@ -255,6 +338,9 @@ export default function Screens() {
                     <td>
                       <div style={{ fontWeight: 500 }}>{s.name}</div>
                       <div className="text-sm text-muted" style={{ fontFamily: 'monospace' }}>{s.token?.slice(0, 8)}…</div>
+                      {powerSummary(s.power_schedule) && (
+                        <div className="text-sm text-muted">⏰ {powerSummary(s.power_schedule)}</div>
+                      )}
                     </td>
                     <td>
                       {s.orientation === 'portrait' ? '📱 Vertical' : '🖥️ Horizontal'}
@@ -385,6 +471,11 @@ export default function Screens() {
                   {tickers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </div>
+
+              <PowerScheduleEditor
+                value={form.power}
+                onChange={power => setForm(f => ({ ...f, power }))}
+              />
 
             </div>
             <div className="modal-footer">
