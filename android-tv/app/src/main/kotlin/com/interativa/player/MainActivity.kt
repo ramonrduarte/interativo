@@ -225,7 +225,7 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         val url = prefs.serverUrl ?: return
         val token = prefs.screenToken ?: return
         socket?.disconnect()
-        socket = TvSocket(url, token, this).also { it.connect() }
+        socket = TvSocket(url, token, this, powerState = { if (standby) "standby" else "on" }).also { it.connect() }
     }
 
     override fun onConnected() {
@@ -285,6 +285,7 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         v.setMessage(nextOnMessage())
         if (v.parent == null) root.addView(v, matchParent())
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        socket?.sendHeartbeat() // painel mostra "Fora do horário"
         // Dá tempo da tela preta aparecer e então deixa a box dormir
         main.postDelayed({ if (standby) PowerController.sleep(this) }, 3_000)
     }
@@ -297,7 +298,7 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         if (!PowerController.isScreenOn(this)) PowerController.wake(this)
         PowerController.releaseCpu()
         ConfigStore.load(this)?.let { signage?.apply(it) }
-        if (socket?.isConnected != true) connectSocket()
+        if (socket?.isConnected != true) connectSocket() else socket?.sendHeartbeat()
     }
 
     private fun exitStandbyUi() {
@@ -365,6 +366,7 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
                 },
             ).append('\n')
             append("Desligar a tela: ").append(if (PowerController.isAdmin(this@MainActivity)) "permitido" else "não permitido (só tela preta)").append('\n')
+            append("Android: ").append(Build.VERSION.RELEASE).append(" · ").append(Build.MODEL).append('\n')
             append("Versão: ").append(BuildConfig.VERSION_NAME)
         }
 
@@ -383,6 +385,14 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         }
         if (!PowerController.isAdmin(this)) {
             actions += "⚙  Permitir que o app desligue a tela" to ::requestAdmin
+        }
+        if (Compat.needsOverlayPermission(this)) {
+            actions += "⚙  Permitir abrir sozinho (Android 10 ou superior)" to { Compat.requestOverlayPermission(this) }
+        }
+        actions += if (Compat.isHomeLauncher(this)) {
+            "🏠  Deixar de ser a tela inicial da box" to { Compat.setHomeLauncher(this, false) }
+        } else {
+            "🏠  Usar como tela inicial da box" to { Compat.setHomeLauncher(this, true) }
         }
         actions += "📺  Desconectar esta TV" to ::confirmUnpair
 

@@ -3,8 +3,58 @@ const { db } = require('./db')
 const { isScheduleActiveNow } = require('./scheduleUtils')
 
 let io
-const registry        = new Map()  // token -> { socketId, screenId, lastSeen }
+const registry        = new Map()  // token -> { socketId, screenId, lastSeen }  (tela online)
 const pairingRegistry = new Map()  // code  -> socketId
+const devices         = new Map()  // socketId -> aparelho conectado (pode haver vários por tela)
+
+// ---------------------------------------------------------------------------
+// Aparelhos conectados
+// ---------------------------------------------------------------------------
+function clientIp(socket) {
+  const fwd = socket.handshake.headers['x-forwarded-for']
+  const ip  = (fwd ? String(fwd).split(',')[0] : socket.handshake.address) || ''
+  return ip.trim().replace(/^::ffff:/, '')
+}
+
+const clip = (v, n = 80) => (v === undefined || v === null) ? null : String(v).slice(0, n)
+
+// O app Android envia { token, device: { client: 'android-app', model, ... } }.
+// A página /tv/ envia só { token } → fica como 'browser'.
+function applyDeviceInfo(device, data) {
+  const d = data?.device
+  if (!d || typeof d !== 'object') return
+  device.client       = d.client === 'android-app' ? 'app' : 'browser'
+  device.manufacturer = clip(d.manufacturer)
+  device.model        = clip(d.model)
+  device.android      = clip(d.android, 20)
+  device.appVersion   = clip(d.appVersion, 20)
+  device.localIp      = clip(d.localIp, 45)
+  if (d.power === 'on' || d.power === 'standby') device.power = d.power
+}
+
+function devicesFor(token) {
+  const list = []
+  devices.forEach((d, socketId) => {
+    if (d.token !== token || !d.screenId) return
+    const { token: _t, ...info } = d
+    list.push({ socketId, ...info })
+  })
+  return list.sort((a, b) => a.connectedAt.localeCompare(b.connectedAt))
+}
+
+function statusFor(token, screenId) {
+  const list = devicesFor(token)
+  return {
+    screenId, token,
+    online:   list.length > 0,
+    lastSeen: list.length ? list.map(d => d.lastSeen).sort().pop() : new Date().toISOString(),
+    devices:  list,
+  }
+}
+
+function emitStatus(token, screenId) {
+  if (io) io.to('dashboard').emit('screen:status', statusFor(token, screenId))
+}
 
 // ---------------------------------------------------------------------------
 // Evaluate which playlist is active right now for a screen
@@ -123,38 +173,56 @@ function initSocket(server) {
 
     // ── Normal TV connection ──────────────────────────────────────────────────
     if (token && token !== 'dashboard') {
-      const screen = await db.screens.findOne(s => s.token === token)
-      if (!screen) { socket.disconnect(); return }
+      // Registra o aparelho e os listeners ANTES de qualquer await:
+      // o app envia "tv:register" logo ao conectar e o evento se perderia.
+      const now    = new Date().toISOString()
+      const device = {
+        token, screenId: null, client: 'browser', ip: clientIp(socket),
+        connectedAt: now, lastSeen: now, power: 'on',
+      }
+      devices.set(socket.id, device)
 
+      socket.on('tv:register', data => {
+        applyDeviceInfo(device, data)
+        if (device.screenId) emitStatus(token, device.screenId)
+      })
+
+      socket.on('tv:heartbeat', data => {
+        const prevPower = device.power
+        device.lastSeen = new Date().toISOString()
+        if (registry.has(token)) registry.get(token).lastSeen = device.lastSeen
+        if (data?.power === 'on' || data?.power === 'standby') device.power = data.power
+        if (device.power !== prevPower && device.screenId) emitStatus(token, device.screenId)
+      })
+
+      socket.on('disconnect', () => {
+        devices.delete(socket.id)
+        // Só fica offline quando o ÚLTIMO aparelho desta tela desconecta
+        const remaining = devicesFor(token)
+        if (remaining.length === 0) registry.delete(token)
+        else if (registry.has(token)) registry.get(token).socketId = remaining[0].socketId
+        if (device.screenId) emitStatus(token, device.screenId)
+      })
+
+      const screen = await db.screens.findOne(s => s.token === token)
+      if (!screen) { devices.delete(socket.id); socket.disconnect(); return }
+      if (!socket.connected) return
+
+      device.screenId = screen.id
       socket.join(token)
-      registry.set(token, { socketId: socket.id, screenId: screen.id, lastSeen: new Date().toISOString() })
+      registry.set(token, { socketId: socket.id, screenId: screen.id, lastSeen: now })
 
       const payload = await buildPayload(screen.id)
       if (payload) socket.emit('config:update', payload)
 
-      io.to('dashboard').emit('screen:status', {
-        screenId: screen.id, token, online: true, lastSeen: registry.get(token).lastSeen,
-      })
-
-      socket.on('tv:heartbeat', () => {
-        if (registry.has(token)) registry.get(token).lastSeen = new Date().toISOString()
-      })
-
-      socket.on('disconnect', () => {
-        registry.delete(token)
-        io.to('dashboard').emit('screen:status', {
-          screenId: screen.id, token, online: false, lastSeen: new Date().toISOString(),
-        })
-      })
+      emitStatus(token, screen.id)
       return
     }
 
     // ── Dashboard connection ──────────────────────────────────────────────────
     socket.join('dashboard')
     registry.forEach((info, t) => {
-      socket.emit('screen:status', {
-        screenId: info.screenId, token: t, online: true, lastSeen: info.lastSeen,
-      })
+      socket.emit('screen:status', statusFor(t, info.screenId))
     })
   })
 
@@ -188,4 +256,4 @@ async function pushToScreen(screenId) {
   return true
 }
 
-module.exports = { initSocket, pushToScreen, completePairing, getPairingEntry, registry, pairingRegistry }
+module.exports = { initSocket, pushToScreen, completePairing, getPairingEntry, registry, pairingRegistry, devicesFor }

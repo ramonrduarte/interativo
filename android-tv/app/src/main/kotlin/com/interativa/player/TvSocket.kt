@@ -1,10 +1,13 @@
 package com.interativa.player
 
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import io.socket.client.IO
 import io.socket.client.Socket
 import org.json.JSONObject
+import java.net.Inet4Address
+import java.net.NetworkInterface
 import java.net.URLEncoder
 
 /**
@@ -16,6 +19,8 @@ class TvSocket(
     private val baseUrl: String,
     private val token: String,
     private val listener: Listener,
+    /** "on" ou "standby" — enviado ao painel. */
+    private val powerState: () -> String = { "on" },
 ) {
     interface Listener {
         fun onConnected()
@@ -30,12 +35,35 @@ class TvSocket(
 
     private val heartbeat = object : Runnable {
         override fun run() {
-            socket?.takeIf { it.connected() }?.emit("tv:heartbeat", JSONObject().put("token", token))
+            sendHeartbeat()
             main.postDelayed(this, 30_000)
         }
     }
 
     val isConnected: Boolean get() = socket?.connected() == true
+
+    /** Envia já o estado (ex.: entrou/saiu do horário desligado). */
+    fun sendHeartbeat() {
+        socket?.takeIf { it.connected() }?.emit("tv:heartbeat", JSONObject().put("token", token).put("power", powerState()))
+    }
+
+    /** Identificação do aparelho exibida no painel (Telas → Status). */
+    private fun deviceInfo() = JSONObject()
+        .put("client", "android-app")
+        .put("manufacturer", Build.MANUFACTURER)
+        .put("model", Build.MODEL)
+        .put("android", Build.VERSION.RELEASE)
+        .put("appVersion", BuildConfig.VERSION_NAME)
+        .put("localIp", localIp())
+        .put("power", powerState())
+
+    private fun localIp(): String? = runCatching {
+        NetworkInterface.getNetworkInterfaces().toList()
+            .filter { it.isUp && !it.isLoopback }
+            .flatMap { it.inetAddresses.toList() }
+            .firstOrNull { it is Inet4Address && !it.isLoopbackAddress }
+            ?.hostAddress
+    }.getOrNull()
 
     fun connect() {
         disconnect()
@@ -48,7 +76,7 @@ class TvSocket(
         }
         val s = IO.socket(baseUrl, opts)
         s.on(Socket.EVENT_CONNECT) {
-            s.emit("tv:register", JSONObject().put("token", token))
+            s.emit("tv:register", JSONObject().put("token", token).put("device", deviceInfo()))
             main.post { listener.onConnected() }
         }
         s.on(Socket.EVENT_DISCONNECT) { args ->

@@ -1,7 +1,7 @@
 const express = require('express')
 const { v4: uuidv4 } = require('uuid')
 const { db } = require('../db')
-const { pushToScreen, registry } = require('../socket')
+const { pushToScreen, registry, devicesFor } = require('../socket')
 
 // Valida o horário de funcionamento vindo do dashboard.
 // Retorna undefined (não altera), null (sem horário) ou { enabled, rules }.
@@ -46,6 +46,7 @@ module.exports = function screenRoutes(_io) {
       ticker_name:         ticker?.name         || null,
       slide_count,
       online: registry.has(s.token),
+      devices: devicesFor(s.token),
     }
   }
 

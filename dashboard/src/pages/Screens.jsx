@@ -1,5 +1,35 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { api } from '../api.js'
+import socket from '../socket.js'
+
+// Aparelhos conectados a uma tela (app Android ou navegador)
+function DeviceList({ devices }) {
+  if (!devices?.length) return null
+  return (
+    <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
+      {devices.map(d => {
+        const isApp = d.client === 'app'
+        const name  = isApp
+          ? [d.manufacturer, d.model].filter(Boolean).join(' ') || 'Android'
+          : 'Navegador'
+        const details = [
+          isApp && d.android    && `Android ${d.android}`,
+          isApp && d.appVersion && `app v${d.appVersion}`,
+          d.localIp || d.ip,
+        ].filter(Boolean).join(' · ')
+        return (
+          <div key={d.socketId} style={{ fontSize: 12, lineHeight: 1.3 }}>
+            <span style={{ fontWeight: 600 }}>{isApp ? '📺' : '🌐'} {name}</span>
+            {d.power === 'standby' && (
+              <span className="badge badge-gray" style={{ marginLeft: 6, fontSize: 10 }}>🌙 Fora do horário</span>
+            )}
+            {details && <div className="text-muted">{details}</div>}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 const DEFAULT_RULE = { days: [1, 2, 3, 4, 5], on: '08:00', off: '18:00' }
 const EMPTY_POWER  = { enabled: false, rules: [DEFAULT_RULE] }
@@ -246,7 +276,15 @@ export default function Screens() {
     } catch (e) { console.error('Erro ao carregar:', e) }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    // Atualiza online/aparelhos ao vivo
+    function onStatus({ token, online, devices }) {
+      setScreens(prev => prev.map(s => s.token === token ? { ...s, online, devices: devices || [] } : s))
+    }
+    socket.on('screen:status', onStatus)
+    return () => socket.off('screen:status', onStatus)
+  }, [])
 
   function openCreate() { setForm(EMPTY_FORM); setModal('create') }
 
@@ -361,7 +399,9 @@ export default function Screens() {
                     <td>
                       <span className={`badge ${s.online ? 'badge-success' : 'badge-gray'}`}>
                         {s.online ? 'Online' : 'Offline'}
+                        {s.devices?.length > 1 && ` · ${s.devices.length} aparelhos`}
                       </span>
+                      <DeviceList devices={s.devices} />
                     </td>
                     <td>
                       <div className="table-actions">
