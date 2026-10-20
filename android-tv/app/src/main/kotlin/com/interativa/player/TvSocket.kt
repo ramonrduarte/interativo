@@ -111,6 +111,8 @@ class PairingSocket(
     private val code: String,
     private val companyToken: String?,
     private val onState: (connected: Boolean) -> Unit,
+    /** Servidor recusou: sem código da empresa ou código inválido. */
+    private val onError: (message: String) -> Unit,
     private val onSuccess: (screenToken: String) -> Unit,
 ) {
     private val main = Handler(Looper.getMainLooper())
@@ -129,6 +131,11 @@ class PairingSocket(
         s.on(Socket.EVENT_CONNECT) { main.post { onState(true) } }
         s.on(Socket.EVENT_DISCONNECT) { main.post { onState(false) } }
         s.on(Socket.EVENT_CONNECT_ERROR) { main.post { onState(false) } }
+        s.on("pairing:error") { args ->
+            val msg = (args.firstOrNull() as? JSONObject)?.optString("message").orEmpty()
+                .ifBlank { "O servidor recusou o pareamento." }
+            main.post { disconnect(); onError(msg) }
+        }
         s.on("pairing:success") { args ->
             val token = (args.firstOrNull() as? JSONObject)?.optString("token").orEmpty()
             if (token.isNotBlank()) main.post { disconnect(); onSuccess(token) }

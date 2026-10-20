@@ -164,10 +164,27 @@ function initSocket(server) {
 
     // ── Pairing mode ──────────────────────────────────────────────────────────
     if (pairing) {
-      const code         = pairing.toUpperCase()
-      const companyToken = (socket.handshake.query.c || '').toUpperCase()
-      pairingRegistry.set(code, { socketId: socket.id, companyToken })
-      socket.on('disconnect', () => pairingRegistry.delete(code))
+      const code         = String(pairing).toUpperCase()
+      const companyToken = String(socket.handshake.query.c || '').trim().toUpperCase()
+      // Pareamento só com o código da empresa: impede que um cliente pareie a TV de outro
+      if (!companyToken) {
+        socket.emit('pairing:error', { error: 'company_required', message: 'Informe o código da empresa para parear esta TV.' })
+        socket.disconnect()
+        return
+      }
+      const companies = await db.companies.all()
+      const company   = companies.find(c => (c.pairing_token || '').toUpperCase() === companyToken)
+      if (!company) {
+        socket.emit('pairing:error', { error: 'company_invalid', message: 'Código da empresa inválido.' })
+        socket.disconnect()
+        return
+      }
+      if (!socket.connected) return
+      pairingRegistry.set(code, { socketId: socket.id, companyToken, companyId: company.id })
+      socket.on('disconnect', () => {
+        if (pairingRegistry.get(code)?.socketId === socket.id) pairingRegistry.delete(code)
+      })
+      socket.emit('pairing:ready', { company: company.name })
       return
     }
 

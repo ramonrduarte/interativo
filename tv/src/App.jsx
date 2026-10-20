@@ -12,7 +12,8 @@ function generateCode() {
 function PairingScreen() {
   const { setToken } = useTvStore()
   const [code] = useState(() => generateCode())
-  const [status, setStatus] = useState('waiting') // waiting | success
+  const [status, setStatus] = useState('waiting') // waiting | success | error
+  const [errorMsg, setErrorMsg] = useState('')
   const socketRef = useRef(null)
   const companyToken = new URLSearchParams(window.location.search).get('c') || ''
 
@@ -22,9 +23,29 @@ function PairingScreen() {
       setToken(token)
       // Small delay so user sees the success message, then reload to connect normally
       setTimeout(() => { window.location.reload() }, 1500)
+    }, message => {
+      setStatus('error')
+      setErrorMsg(message)
     })
     return () => socketRef.current?.disconnect()
   }, [])
+
+  if (status === 'error') {
+    return (
+      <div style={{
+        width: '100vw', height: '100vh', background: '#0a0c10',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        color: '#fff', fontFamily: 'system-ui, sans-serif', gap: 16, textAlign: 'center', padding: 32,
+      }}>
+        <div style={{ fontSize: 22, color: '#888', fontWeight: 500 }}>📺 Interativa TV</div>
+        <div style={{ fontSize: 24, color: '#f6a623', fontWeight: 700 }}>⚠ {errorMsg || 'Não foi possível parear'}</div>
+        <div style={{ fontSize: 16, color: '#888', maxWidth: 560 }}>
+          Abra nesta TV o <strong style={{ color: '#fff' }}>link de acesso da sua empresa</strong>,
+          que aparece no painel em <strong style={{ color: '#2d6ef5' }}>Telas</strong>.
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{

@@ -86,11 +86,9 @@ async function main() {
       const entry = getPairingEntry(code)
       if (!entry) return res.status(404).json({ error: 'Código não encontrado ou expirado. A TV está com a tela de pareamento aberta?' })
 
-      if (entry.companyToken) {
-        const company = await db.companies.get(req.user.company_id)
-        if (!company?.pairing_token || entry.companyToken !== company.pairing_token.toUpperCase()) {
-          return res.status(403).json({ error: 'Este código pertence a outra empresa. Certifique-se de que a TV acessou o link correto.' })
-        }
+      // Só a empresa dona do código informado na TV pode parear (pareamento sem empresa é recusado no socket)
+      if (!entry.companyId || Number(entry.companyId) !== Number(req.user.company_id)) {
+        return res.status(403).json({ error: 'Este código pertence a outra empresa. Certifique-se de que a TV usou o código da sua empresa.' })
       }
 
       const screen = await db.screens.findByIdAndCompany(screen_id, req.user.company_id)
@@ -113,13 +111,10 @@ async function main() {
 
   app.get('/api/pair/waiting', async (req, res) => {
     try {
-      const company = await db.companies.get(req.user.company_id)
-      const companyToken = company?.pairing_token?.toUpperCase() || ''
+      // Lista apenas as TVs aguardando que usaram o código desta empresa
       const waiting = []
       pairingRegistry.forEach((entry, code) => {
-        if (!entry.companyToken || !companyToken || entry.companyToken === companyToken) {
-          waiting.push({ code })
-        }
+        if (entry.companyId && Number(entry.companyId) === Number(req.user.company_id)) waiting.push({ code })
       })
       res.json(waiting)
     } catch (e) { res.status(500).json({ error: e.message }) }

@@ -28,7 +28,7 @@ export function connectSocket() {
 }
 
 // Pairing mode — connects with a short code, waits for server to send the real token
-export function connectPairing(code, companyToken, onSuccess) {
+export function connectPairing(code, companyToken, onSuccess, onError) {
   if (socket) { socket.disconnect() }
 
   const query = { pairing: code }
@@ -39,6 +39,9 @@ export function connectPairing(code, companyToken, onSuccess) {
     socket.disconnect()
     onSuccess(token)
   })
+
+  // Servidor recusa pareamento sem o código da empresa (ou com código inválido)
+  socket.on('pairing:error', ({ message }) => onError?.(message))
 
   return socket
 }

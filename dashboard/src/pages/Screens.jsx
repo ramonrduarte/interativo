@@ -139,6 +139,14 @@ function TvLinkBanner({ pairingToken }) {
         <div style={{ fontSize: 13, color: '#555', marginBottom: 6 }}>
           Abra este link no navegador da TV. Cada empresa tem seu próprio link — isso garante que somente suas telas possam ser pareadas.
         </div>
+        {pairingToken && (
+          <div style={{ fontSize: 13, color: '#555', marginBottom: 6 }}>
+            No app <strong>Interativa Player</strong>, use <em>Parear com código</em> e informe o código da empresa:{' '}
+            <span style={{ fontFamily: 'monospace', fontSize: 18, fontWeight: 700, letterSpacing: 3, color: '#1e40af' }}>
+              {pairingToken}
+            </span>
+          </div>
+        )}
         <div style={{
           fontFamily: 'monospace', fontSize: 13, background: '#e0f2fe',
           padding: '6px 10px', borderRadius: 6, color: '#0c4a6e', wordBreak: 'break-all',
@@ -193,7 +201,8 @@ function PairModal({ screens, onClose }) {
         </div>
         <div className="modal-body">
           <p className="text-sm text-muted" style={{ marginBottom: 16 }}>
-            Abra o app na TV. Ela exibirá um código de 6 caracteres.
+            Abra o app na TV com o código da sua empresa. Ela exibirá um código de 6 caracteres.
+            Somente TVs que usaram o código da sua empresa aparecem aqui.
           </p>
 
           {waiting.length > 0 && (

@@ -139,13 +139,18 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         setScreen(SetupScreens.welcome(this, error, onCode = ::showServerForm, onLogin = ::showLoginForm))
     }
 
-    private fun showServerForm() {
+    private fun showServerForm(error: String? = null) {
         mode = Mode.SETUP
         lateinit var form: SetupScreens.Form
-        form = SetupScreens.serverForm(this, prefs.serverUrl, onSubmit = { input ->
+        form = SetupScreens.serverForm(this, prefs.serverUrl, prefs.companyToken, error, onSubmit = { input, companyInput ->
             val url = Prefs.normalizeUrl(input)
+            val company = companyInput.trim().uppercase()
             if (url.isBlank()) {
                 form.setBusy(false, "Informe o endereço do servidor")
+                return@serverForm
+            }
+            if (company.isBlank()) {
+                form.setBusy(false, "Informe o código da empresa (aparece no painel em Telas)")
                 return@serverForm
             }
             form.setBusy(true, null)
@@ -154,8 +159,8 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
                 runOnUiThread {
                     result.onSuccess {
                         prefs.serverUrl = url
-                        prefs.companyToken = null
-                        showPairing(null)
+                        prefs.companyToken = company
+                        showPairing(company)
                     }.onFailure { form.setBusy(false, it.message) }
                 }
             }.start()
@@ -187,14 +192,18 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         setScreen(form.view)
     }
 
-    private fun showPairing(companyToken: String?) {
+    private fun showPairing(companyToken: String) {
         mode = Mode.PAIRING
         stopPairing()
         val url = prefs.serverUrl ?: return showWelcome(null)
         val code = (1..6).map { CODE_CHARS.random() }.joinToString("")
         val screen = SetupScreens.pairing(this, code, url, onBack = { showWelcome(null) })
         setScreen(screen.view)
-        pairing = PairingSocket(url, code, companyToken, onState = screen.setConnected) { token ->
+        pairing = PairingSocket(url, code, companyToken, onState = screen.setConnected, onError = { msg ->
+            // Código da empresa ausente/errado: volta ao formulário mostrando o motivo
+            stopPairing()
+            showServerForm(msg)
+        }) { token ->
             prefs.screenToken = token
             screen.setSuccess()
             main.postDelayed({ startSignage() }, 1_500)
@@ -396,9 +405,18 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         }
         actions += "📺  Desconectar esta TV" to ::confirmUnpair
 
+        // Informações no cabeçalho: com setMessage() o Android esconderia a lista de opções
+        val header = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            val p = com.interativa.player.ui.Ui.dp(this@MainActivity, 20)
+            setPadding(p, p, p, p / 2)
+            addView(com.interativa.player.ui.Ui.text(this@MainActivity, "Interativa Player", 20f, bold = true))
+            addView(com.interativa.player.ui.Ui.text(this@MainActivity, info, 14f, com.interativa.player.ui.Ui.MUTED).apply {
+                setPadding(0, p / 2, 0, 0)
+            })
+        }
         AlertDialog.Builder(this, R.style.Theme_Player_Dialog)
-            .setTitle("Interativa Player")
-            .setMessage(info)
+            .setCustomTitle(header)
             .setItems(actions.map { it.first }.toTypedArray()) { _, which -> actions[which].second() }
             .setNegativeButton("Fechar", null)
             .show()

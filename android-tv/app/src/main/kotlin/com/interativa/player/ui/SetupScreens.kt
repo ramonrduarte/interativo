@@ -69,7 +69,7 @@ object SetupScreens {
         c.addView(errorText(ctx, error), gapParams(ctx))
         val first = Ui.button(ctx, "🔢  Parear com código") { onCode() }
         c.addView(first, gapParams(ctx))
-        c.addView(Ui.text(ctx, "A TV mostra um código e você confirma no painel em Telas → Parear TV.", 13f, Ui.DIM), gapParams(ctx, 22))
+        c.addView(Ui.text(ctx, "Informe o código da empresa; a TV mostra um código e você confirma no painel em Telas → Parear TV.", 13f, Ui.DIM), gapParams(ctx, 22))
         c.addView(Ui.button(ctx, "👤  Entrar com usuário e senha", primary = false) { onLogin() }, gapParams(ctx))
         c.addView(Ui.text(ctx, "Vincula a TV à sua empresa antes de mostrar o código.", 13f, Ui.DIM))
         first.post { first.requestFocus() }
@@ -80,16 +80,30 @@ object SetupScreens {
 
     class Form(val view: View, val setBusy: (Boolean, String?) -> Unit)
 
-    fun serverForm(ctx: Context, initialUrl: String?, onSubmit: (url: String) -> Unit, onBack: () -> Unit): Form {
+    fun serverForm(
+        ctx: Context,
+        initialUrl: String?,
+        initialCompany: String?,
+        error: String?,
+        onSubmit: (url: String, company: String) -> Unit,
+        onBack: () -> Unit,
+    ): Form {
         val c = card(ctx)
         val url = Ui.field(ctx, "Endereço do servidor", uri = true).apply { setText(initialUrl.orEmpty()) }
+        val company = Ui.field(ctx, "Código da empresa").apply {
+            setText(initialCompany.orEmpty())
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+            filters = arrayOf(android.text.InputFilter.AllCaps())
+        }
         c.addView(Ui.text(ctx, "Ex.: interativa.suaempresa.com.br ou 192.168.0.110:3001", 13f, Ui.DIM), gapParams(ctx, 10))
-        c.addView(url, gapParams(ctx))
-        val err = errorText(ctx, null)
+        c.addView(url, gapParams(ctx, 18))
+        c.addView(Ui.text(ctx, "Código da empresa: aparece no painel em Telas → Link de acesso da TV", 13f, Ui.DIM), gapParams(ctx, 10))
+        c.addView(company, gapParams(ctx))
+        val err = errorText(ctx, error)
         c.addView(err, gapParams(ctx))
         lateinit var submit: android.widget.Button
-        submit = Ui.button(ctx, "Continuar") { onSubmit(url.text.toString()) }
-        Ui.onImeDone(url) { submit.performClick() }
+        submit = Ui.button(ctx, "Continuar") { onSubmit(url.text.toString(), company.text.toString()) }
+        Ui.onImeDone(company) { submit.performClick() }
         c.addView(submit, gapParams(ctx, 10))
         c.addView(Ui.button(ctx, "Voltar", primary = false) { onBack() }, gapParams(ctx, 0))
         url.post { url.requestFocus() }
