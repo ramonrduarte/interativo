@@ -38,6 +38,27 @@ object Compat {
         }
     }
 
+    /** Android 6+: sem isso o modo economia (Doze) pode atrasar alarmes e a reconexão. */
+    fun needsBatteryExemption(ctx: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false
+        val pm = ctx.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        return !pm.isIgnoringBatteryOptimizations(ctx.packageName)
+    }
+
+    @android.annotation.SuppressLint("BatteryLife")
+    fun requestBatteryExemption(ctx: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        val direct = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${ctx.packageName}"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { ctx.startActivity(direct) }.onFailure {
+            runCatching {
+                ctx.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }.onFailure {
+                Toast.makeText(ctx, "Esta TV não tem essa configuração — pode ignorar.", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     private fun homeAlias(ctx: Context) = ComponentName(ctx, "${ctx.packageName}.HomeAlias")
 
     fun isHomeLauncher(ctx: Context): Boolean =

@@ -29,6 +29,11 @@ class Prefs(ctx: Context) {
         get() = sp.getLong(K_OVR_UNTIL, 0L)
         set(v) = sp.edit().putLong(K_OVR_UNTIL, v).apply()
 
+    /** Versão do app em que o assistente de permissões já foi exibido. */
+    var setupShownVersion: Int
+        get() = sp.getInt(K_SETUP_SHOWN, 0)
+        set(v) = sp.edit().putInt(K_SETUP_SHOWN, v).apply()
+
     val isPaired: Boolean get() = !serverUrl.isNullOrBlank() && !screenToken.isNullOrBlank()
 
     fun unpair() = sp.edit().remove(K_SCREEN).remove(K_OVR_UNTIL).apply()
@@ -39,6 +44,7 @@ class Prefs(ctx: Context) {
         private const val K_COMPANY = "company_token"
         private const val K_OVR_ON = "override_on"
         private const val K_OVR_UNTIL = "override_until"
+        private const val K_SETUP_SHOWN = "setup_shown_version"
 
         /**
          * Aceita "interativa.empresa.com.br", "192.168.0.110:3001", "https://...".

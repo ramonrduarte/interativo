@@ -14,7 +14,9 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.interativa.player.power.PowerController
 import com.interativa.player.power.WatchdogService
+import com.interativa.player.ui.PermissionsScreen
 import com.interativa.player.ui.SetupScreens
+import com.interativa.player.ui.SetupStep
 import com.interativa.player.ui.SignageView
 import com.interativa.player.ui.StandbyView
 import com.interativa.player.ui.matchParent
@@ -38,7 +40,7 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         private const val TEST_OFF_MS = 60 * 1000L
     }
 
-    private enum class Mode { SETUP_HOME, SETUP, PAIRING, SIGNAGE }
+    private enum class Mode { SETUP_HOME, SETUP, PAIRING, PERMISSIONS, SIGNAGE }
 
     private lateinit var prefs: Prefs
     private lateinit var root: FrameLayout
@@ -95,6 +97,8 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         isAlive = true
         hideSystemUi()
         if (mode == Mode.SIGNAGE) evaluatePower()
+        // Voltou de uma tela de permissão do sistema: atualiza os ✓
+        if (mode == Mode.PERMISSIONS) setScreen(PermissionsScreen.build(this, setupSteps()) { startSignage() })
     }
 
     override fun onPause() {
@@ -125,7 +129,12 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
     // ── Navegação entre telas ────────────────────────────────────────────────
 
     private fun route() {
-        if (prefs.isPaired) startSignage() else showWelcome(null)
+        when {
+            !prefs.isPaired -> showWelcome(null)
+            // TV já pareada mas sem as permissões: mostra o assistente uma vez por versão do app
+            missingRequiredSteps() > 0 && prefs.setupShownVersion != BuildConfig.VERSION_CODE -> showPermissions()
+            else -> startSignage()
+        }
     }
 
     private fun setScreen(view: View) {
@@ -206,13 +215,60 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         }) { token ->
             prefs.screenToken = token
             screen.setSuccess()
-            main.postDelayed({ startSignage() }, 1_500)
+            // Recém-pareada: guia as permissões antes de começar a exibir
+            main.postDelayed({ if (missingRequiredSteps() > 0) showPermissions() else startSignage() }, 1_500)
         }.also { it.connect() }
     }
 
     private fun stopPairing() {
         pairing?.disconnect()
         pairing = null
+    }
+
+    // ── Assistente de permissões ─────────────────────────────────────────────
+
+    private fun setupSteps(): List<SetupStep> {
+        val steps = mutableListOf<SetupStep>()
+        steps += SetupStep(
+            title = "Desligar a tela no horário",
+            description = "Permite apagar a TV fora do horário de funcionamento. Na tela que abrir, confirme em “Ativar”.",
+            done = PowerController.isAdmin(this),
+            action = ::requestAdmin,
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            steps += SetupStep(
+                title = "Abrir sozinho",
+                description = "Necessário no Android 10+ para abrir ao ligar a box e religar no horário. Ative “Permitir”.",
+                done = !Compat.needsOverlayPermission(this),
+                action = { Compat.requestOverlayPermission(this) },
+            )
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            steps += SetupStep(
+                title = "Sem economia de energia",
+                description = "Evita que o sistema atrase os horários de ligar/desligar. Confirme em “Permitir”.",
+                done = !Compat.needsBatteryExemption(this),
+                optional = true,
+                action = { Compat.requestBatteryExemption(this) },
+            )
+        }
+        steps += SetupStep(
+            title = "Usar como tela inicial",
+            description = "A box sempre volta para o player (modo quiosque). Escolha “Interativa Player” e “Sempre”.",
+            done = Compat.isHomeLauncher(this),
+            optional = true,
+            actionLabel = "Usar",
+            action = { Compat.setHomeLauncher(this, true) },
+        )
+        return steps
+    }
+
+    private fun missingRequiredSteps() = setupSteps().count { !it.done && !it.optional }
+
+    private fun showPermissions() {
+        mode = Mode.PERMISSIONS
+        prefs.setupShownVersion = BuildConfig.VERSION_CODE
+        setScreen(PermissionsScreen.build(this, setupSteps()) { startSignage() })
     }
 
     // ── Exibição ─────────────────────────────────────────────────────────────
@@ -339,6 +395,9 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
                 }
                 KeyEvent.KEYCODE_BACK -> return true // modo quiosque
             }
+        } else if (keyCode == KeyEvent.KEYCODE_BACK && mode == Mode.PERMISSIONS) {
+            startSignage()
+            return true
         } else if (keyCode == KeyEvent.KEYCODE_BACK && mode != Mode.SETUP_HOME) {
             // Nas telas de configuração, Voltar retorna à tela inicial em vez de fechar o app
             showWelcome(null)
@@ -392,16 +451,13 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
                 evaluatePower()
             }
         }
-        if (!PowerController.isAdmin(this)) {
-            actions += "⚙  Permitir que o app desligue a tela" to ::requestAdmin
+        val missing = missingRequiredSteps()
+        actions += (if (missing > 0) "⚠  Configurar esta TV ($missing pendente${if (missing > 1) "s" else ""})" else "⚙  Configurar esta TV") to {
+            signage?.stop()
+            showPermissions()
         }
-        if (Compat.needsOverlayPermission(this)) {
-            actions += "⚙  Permitir abrir sozinho (Android 10 ou superior)" to { Compat.requestOverlayPermission(this) }
-        }
-        actions += if (Compat.isHomeLauncher(this)) {
-            "🏠  Deixar de ser a tela inicial da box" to { Compat.setHomeLauncher(this, false) }
-        } else {
-            "🏠  Usar como tela inicial da box" to { Compat.setHomeLauncher(this, true) }
+        if (Compat.isHomeLauncher(this)) {
+            actions += "🏠  Deixar de ser a tela inicial da box" to { Compat.setHomeLauncher(this, false) }
         }
         actions += "📺  Desconectar esta TV" to ::confirmUnpair
 

@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <!-- Android 10+: permite abrir o player sozinho (boot, horário de ligar, watchdog) -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Pedido direto para não sofrer com o modo economia de energia (Doze) -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Roda em TV box, TV e celular -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
