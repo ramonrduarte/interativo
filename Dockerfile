@@ -18,6 +18,9 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
 
+# ffmpeg: converte vídeos enviados (HEVC, 10 bits, 4K…) para H.264 compatível com qualquer TV
+RUN apk add --no-cache ffmpeg
+
 # Copy server source + built frontend assets
 COPY --from=builder /app/server/src ./server/src
 COPY --from=builder /app/server/public ./server/public

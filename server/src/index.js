@@ -17,6 +17,7 @@ async function main() {
 
   const io = initSocket(server)
   await startScheduler(pushToScreen)
+  require('./videoConvert').startVideoMaintenance()
 
   app.use(cors({ origin: '*' }))
   app.use(express.json())

@@ -3,6 +3,7 @@ const multer  = require('multer')
 const path    = require('path')
 const fs      = require('fs')
 const { db }  = require('../db')
+const { queueConversion } = require('../videoConvert')
 
 const uploadsDir = path.join(__dirname, '../../../uploads')
 
@@ -47,10 +48,13 @@ module.exports = function contentRoutes(_io) {
       const video_duration = type === 'video' && req.body.video_duration
         ? Math.round(Number(req.body.video_duration))
         : null
-      res.json(await db.media.insert({
+      const media = await db.media.insert({
         name, type, filename, mime_type: req.file.mimetype, file_size: req.file.size,
         object_fit, video_duration, company_id: req.user.company_id,
-      }))
+      })
+      // Vídeos fora do padrão (HEVC, 10 bits, 4K…) são convertidos para H.264 em segundo plano
+      if (type === 'video') queueConversion(media.id)
+      res.json(media)
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
