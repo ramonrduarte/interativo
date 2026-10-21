@@ -306,7 +306,8 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
     }
 
     override fun onConnected() {
-        rejectCount = 0
+        // Não zera rejectCount aqui: o servidor aceita a conexão por um instante antes de
+        // conferir a tela — só a chegada de conteúdo prova que a tela ainda existe.
         signage?.setConnected(true)
     }
 
@@ -315,6 +316,7 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
     }
 
     override fun onConfig(json: JSONObject) {
+        rejectCount = 0
         ConfigStore.save(this, json)
         val cfg = ConfigStore.load(this) ?: return
         PowerController.scheduleNext(this)

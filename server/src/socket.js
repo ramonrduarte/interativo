@@ -222,7 +222,14 @@ function initSocket(server) {
       })
 
       const screen = await db.screens.findOne(s => s.token === token)
-      if (!screen) { devices.delete(socket.id); socket.disconnect(); return }
+      if (!screen) {
+        // Tela não existe mais (excluída enquanto a TV estava desligada/offline):
+        // avisa para a TV voltar ao pareamento em vez de ficar tentando reconectar
+        devices.delete(socket.id)
+        socket.emit('screen:removed')
+        setTimeout(() => socket.disconnect(), 500)
+        return
+      }
       if (!socket.connected) return
 
       device.screenId = screen.id
