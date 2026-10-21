@@ -10,6 +10,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.interativa.player.power.PowerController
@@ -243,6 +244,14 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
                 action = { Compat.requestOverlayPermission(this) },
             )
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            steps += SetupStep(
+                title = "Atualizar sozinho",
+                description = "Deixa o app instalar as versões novas publicadas no painel. Ative “Permitir desta fonte”.",
+                done = UpdateManager.canInstall(this),
+                action = { UpdateManager.requestInstallPermission(this) },
+            )
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             steps += SetupStep(
                 title = "Sem economia de energia",
@@ -284,6 +293,7 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         connectSocket()
         main.removeCallbacks(powerTick)
         main.post(powerTick)
+        UpdateManager.schedule(this)
     }
 
     private fun connectSocket() {
@@ -437,11 +447,22 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
             if (totalVideos > 0) append("Vídeos no aparelho: ").append(cached).append(" de ").append(totalVideos).append('\n')
             append("Desligar a tela: ").append(if (PowerController.isAdmin(this@MainActivity)) "permitido" else "não permitido (só tela preta)").append('\n')
             append("Android: ").append(Build.VERSION.RELEASE).append(" · ").append(Build.MODEL).append('\n')
+            append("Atualização: ").append(
+                when {
+                    UpdateManager.isDeviceOwner(this@MainActivity) -> "automática (silenciosa)"
+                    UpdateManager.canInstall(this@MainActivity) -> "automática (pede confirmação)"
+                    else -> "não permitida"
+                },
+            ).append(" · ").append(UpdateManager.lastStatus).append('\n')
             append("Versão: ").append(BuildConfig.VERSION_NAME)
         }
 
         val actions = mutableListOf<Pair<String, () -> Unit>>()
         actions += "🔄  Recarregar conteúdo" to { connectSocket() }
+        actions += "⬆  Procurar atualização do app" to {
+            Toast.makeText(this, "Procurando atualização…", Toast.LENGTH_SHORT).show()
+            UpdateManager.checkNow(this, manual = true) { msg -> Toast.makeText(this, msg, Toast.LENGTH_LONG).show() }
+        }
         if (standby) {
             actions += "💡  Ligar agora (por 2 horas)" to { setManualPower(true, MANUAL_ON_MS) }
         } else {
@@ -457,6 +478,14 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         actions += (if (missing > 0) "⚠  Configurar esta TV ($missing pendente${if (missing > 1) "s" else ""})" else "⚙  Configurar esta TV") to {
             signage?.stop()
             showPermissions()
+        }
+        if (UpdateManager.isDeviceOwner(this)) {
+            actions += "🔓  Sair do modo gerenciado" to {
+                runCatching {
+                    (getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager).clearDeviceOwnerApp(packageName)
+                }
+                Toast.makeText(this, "Modo gerenciado desativado", Toast.LENGTH_LONG).show()
+            }
         }
         if (Compat.isHomeLauncher(this)) {
             actions += "🏠  Deixar de ser a tela inicial da box" to { Compat.setHomeLauncher(this, false) }

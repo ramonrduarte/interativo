@@ -12,8 +12,8 @@ android {
         applicationId "com.interativa.player"
         minSdk 21
         targetSdk 34
-        versionCode 5
-        versionName "1.4.0"
+        versionCode 6
+        versionName "1.5.0"
     }
 
     buildTypes {
@@ -26,7 +26,10 @@ android {
 
     applicationVariants.all { variant ->
         variant.outputs.all {
-            outputFileName = "interativa-player-${variant.buildType.name}.apk"
+            // Ex.: interativa-player-1.5.0-6.apk — o painel lê a versão pelo nome ao publicar
+            outputFileName = variant.buildType.name == "release"
+                ? "interativa-player-${variant.versionName}-${variant.versionCode}.apk"
+                : "interativa-player-${variant.buildType.name}.apk"
         }
     }
 

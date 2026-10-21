@@ -14,6 +14,8 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- Pedido direto para não sofrer com o modo economia de energia (Doze) -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Atualização automática pelo servidor -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Roda em TV box, TV e celular -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
@@ -69,6 +71,10 @@
 
         <receiver
             android:name=".power.PowerAlarmReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".InstallResultReceiver"
             android:exported="false" />
 
         <!-- Administrador do dispositivo: só a política "force-lock" (apagar a tela) -->

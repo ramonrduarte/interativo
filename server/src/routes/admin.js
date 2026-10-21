@@ -14,6 +14,9 @@ function makeToken(len = 8) {
 const router = express.Router()
 router.use(requireSuperadmin)
 
+// Publicação do app Android (atualização automática das TVs)
+router.use(require('./appRelease').adminRouter)
+
 // Lista todas as empresas com contadores
 router.get('/companies', async (_req, res) => {
   try {

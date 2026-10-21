@@ -30,6 +30,9 @@ async function main() {
   // Public API — auth routes (no JWT required)
   app.use('/api/auth', require('./routes/auth'))
 
+  // Versão publicada do app Android — consultada pelas TVs para se atualizarem (sem login)
+  app.use('/api/app', require('./routes/appRelease').publicRouter)
+
 
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true, connectedScreens: registry.size, uptime: process.uptime() })

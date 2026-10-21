@@ -1,6 +1,66 @@
 import React, { useEffect, useState } from 'react'
 import { api } from '../api.js'
 
+// Publicação do app Android — as TVs baixam e instalam a versão nova sozinhas
+function AppReleaseCard() {
+  const [release, setRelease] = useState(null)
+  const [file, setFile]       = useState(null)
+  const [msg, setMsg]         = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => { api.adminGetAppRelease().then(setRelease).catch(() => {}) }, [])
+
+  async function handlePublish(e) {
+    e.preventDefault()
+    if (!file) return setMsg({ type: 'error', text: 'Selecione o arquivo .apk' })
+    setLoading(true)
+    setMsg(null)
+    try {
+      const fd = new FormData()
+      fd.append('apk', file)
+      const r = await api.adminPublishApp(fd)
+      setRelease(r)
+      setFile(null)
+      e.target.reset()
+      setMsg({ type: 'success', text: `Versão ${r.versionName} publicada! As TVs vão se atualizar nas próximas horas (ou pelo menu do app → Procurar atualização).` })
+    } catch (err) {
+      setMsg({ type: 'error', text: err.message })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="card" style={{ padding: 24 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>App Android (Interativa Player)</h2>
+      <p className="text-sm text-muted" style={{ marginBottom: 16 }}>
+        Envie a versão nova do app e todas as TVs se atualizam sozinhas.
+      </p>
+      <div style={{ padding: '10px 14px', background: '#f8f9fa', borderRadius: 8, marginBottom: 16, fontSize: 14 }}>
+        {release
+          ? <>Versão publicada: <strong>{release.versionName}</strong> (código {release.versionCode}) · {(release.size / 1048576).toFixed(1)} MB · {new Date(release.publishedAt).toLocaleString('pt-BR')}</>
+          : <span className="text-muted">Nenhuma versão publicada ainda.</span>}
+      </div>
+      <form onSubmit={handlePublish} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <input type="file" accept=".apk" onChange={e => setFile(e.target.files?.[0] || null)} />
+        {msg && (
+          <div style={{
+            padding: '10px 14px', borderRadius: 6, fontSize: 14,
+            background: msg.type === 'success' ? '#f0fff4' : '#fff5f5',
+            border: `1px solid ${msg.type === 'success' ? '#9ae6b4' : '#feb2b2'}`,
+            color: msg.type === 'success' ? '#276749' : '#c53030',
+          }}>
+            {msg.text}
+          </div>
+        )}
+        <button className="btn btn-primary" type="submit" disabled={loading} style={{ alignSelf: 'flex-start' }}>
+          {loading ? 'Enviando...' : 'Publicar versão'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
 export default function Settings({ user }) {
   // --- Trocar senha ---
   const [pwd, setPwd] = useState({ current: '', next: '', confirm: '' })
@@ -108,6 +168,8 @@ export default function Settings({ user }) {
             </button>
           </form>
         </div>
+
+        {user?.role === 'superadmin' && <AppReleaseCard />}
 
         {/* Gerenciar usuários */}
         <div className="card" style={{ padding: 24 }}>

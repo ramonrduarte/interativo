@@ -90,6 +90,8 @@ export const api = {
   adminCreateCompany: (data) => req('POST', '/admin/companies', data),
   adminDeleteCompany: (id) => req('DELETE', `/admin/companies/${id}`),
   adminImpersonate: (companyId) => req('POST', `/admin/impersonate/${companyId}`),
+  adminGetAppRelease: () => req('GET', '/admin/app-release'),
+  adminPublishApp: (formData) => req('POST', '/admin/app-release', formData),
 
   // Playlist Groups
   getPlaylistGroups: () => req('GET', '/playlist-groups'),
