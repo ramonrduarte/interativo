@@ -433,6 +433,8 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
                     else -> "${power.rules.size} regra(s) do painel"
                 },
             ).append('\n')
+            val (cached, totalVideos) = VideoPrefetcher.progress()
+            if (totalVideos > 0) append("Vídeos no aparelho: ").append(cached).append(" de ").append(totalVideos).append('\n')
             append("Desligar a tela: ").append(if (PowerController.isAdmin(this@MainActivity)) "permitido" else "não permitido (só tela preta)").append('\n')
             append("Android: ").append(Build.VERSION.RELEASE).append(" · ").append(Build.MODEL).append('\n')
             append("Versão: ").append(BuildConfig.VERSION_NAME)

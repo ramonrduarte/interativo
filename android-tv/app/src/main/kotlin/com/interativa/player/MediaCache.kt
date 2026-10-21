@@ -10,6 +10,7 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.ContentMetadata
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import java.io.File
@@ -50,4 +51,20 @@ object MediaCache {
     }
 
     fun liveFactory(ctx: Context): DataSource.Factory = DefaultDataSource.Factory(ctx, http())
+
+    /** Apaga do disco vídeos que saíram da playlist (ex.: arquivo trocado pela conversão para H.264). */
+    @Synchronized
+    fun removeUnused(keep: Set<String>) {
+        val c = cache ?: return
+        c.keys.filter { it !in keep }.forEach { key ->
+            runCatching { c.removeResource(key) }
+        }
+    }
+
+    /** Vídeo inteiro já está no disco? */
+    fun isFullyCached(url: String): Boolean {
+        val c = cache ?: return false
+        val length = ContentMetadata.getContentLength(c.getContentMetadata(url))
+        return length > 0 && c.isCached(url, 0, length)
+    }
 }

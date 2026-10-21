@@ -15,6 +15,7 @@ import coil.request.CachePolicy
 import coil.request.ImageRequest
 import com.interativa.player.Slide
 import com.interativa.player.TvConfig
+import com.interativa.player.VideoPrefetcher
 
 /** Um slide: grade de zonas do template, cada zona com seu conteúdo. */
 class SlideView(ctx: Context, slide: Slide, onVideoEnd: (() -> Unit)?) : ZoneGridLayout(ctx, slide.template) {
@@ -95,6 +96,7 @@ class SignageView(ctx: Context) : FrameLayout(ctx) {
         ticker.bind(cfg.ticker)
         ticker.visibility = if (cfg.ticker != null) VISIBLE else GONE
         prefetchImages(cfg)
+        VideoPrefetcher.prefetch(context, cfg)
         val changed = old == null || old.slidesSignature != cfg.slidesSignature
         if (changed || !isShowing) {
             index = 0
