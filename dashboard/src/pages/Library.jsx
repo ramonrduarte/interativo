@@ -22,6 +22,44 @@ export default function Library() {
 
   useEffect(() => { load() }, [])
 
+  // Conversão de vídeos para H.264 no servidor: consulta a cada 4 s
+  const [conv, setConv] = useState({ active: null, waiting: [] })
+  const hadConversion = useRef(false)
+  useEffect(() => {
+    let stop = false
+    async function poll() {
+      try {
+        const c = await api.getConversions()
+        if (stop) return
+        setConv(c)
+        const busy = !!c.active || c.waiting.length > 0
+        // Terminou: recarrega a lista para mostrar o arquivo novo
+        if (hadConversion.current && !busy) load()
+        hadConversion.current = busy
+      } catch {}
+    }
+    poll()
+    const t = setInterval(poll, 4000)
+    return () => { stop = true; clearInterval(t) }
+  }, [])
+
+  function fmtTime(sec) {
+    if (sec == null) return 'calculando…'
+    if (sec < 60) return `${sec}s`
+    const m = Math.floor(sec / 60), s = sec % 60
+    return m < 60 ? `${m}min ${String(s).padStart(2, '0')}s` : `${Math.floor(m / 60)}h ${m % 60}min`
+  }
+
+  function conversionBadge(item) {
+    if (conv.active?.mediaId === item.id) {
+      return <span className="badge badge-blue" title="Convertendo para H.264">🔄 {conv.active.percent ?? 0}%</span>
+    }
+    if (conv.waiting.some(w => w.mediaId === item.id)) {
+      return <span className="badge badge-gray" title="Aguardando conversão para H.264">⏳ Na fila</span>
+    }
+    return null
+  }
+
   const filtered = filter === 'all' ? items : items.filter(i => i.type === filter)
 
   function getVideoDuration(file) {
@@ -318,6 +356,36 @@ export default function Library() {
         </div>
       )}
 
+      {/* Conversão de vídeos em andamento */}
+      {(conv.active || conv.waiting.length > 0) && (
+        <div style={{
+          background: '#f0f7ff', border: '1px solid #bfdbfe', borderRadius: 10,
+          padding: '12px 16px', marginBottom: 16,
+        }}>
+          <div style={{ fontWeight: 600, fontSize: 14, color: '#1e40af', marginBottom: 6 }}>
+            🔄 Convertendo vídeos para o formato compatível com as TVs (H.264)
+          </div>
+          {conv.active && (
+            <>
+              <div style={{ fontSize: 13, color: '#334155', marginBottom: 6 }}>
+                <strong>{conv.active.name}</strong> — {conv.active.percent ?? 0}% · falta {fmtTime(conv.active.remainingSec)}
+              </div>
+              <div style={{ background: '#dbeafe', borderRadius: 4, height: 6 }}>
+                <div style={{ width: (conv.active.percent ?? 0) + '%', background: 'var(--accent)', height: '100%', borderRadius: 4, transition: 'width .5s' }} />
+              </div>
+            </>
+          )}
+          {conv.waiting.length > 0 && (
+            <div className="text-sm text-muted" style={{ marginTop: 6 }}>
+              Na fila ({conv.waiting.length}): {conv.waiting.map(w => w.name).join(', ')}
+            </div>
+          )}
+          <div className="text-sm text-muted" style={{ marginTop: 6 }}>
+            Enquanto isso, as TVs continuam exibindo a versão anterior do vídeo.
+          </div>
+        </div>
+      )}
+
       {/* Filter tabs */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
         {filterTypes.map(t => (
@@ -375,7 +443,7 @@ export default function Library() {
                 <div className="media-info">
                   <div className="media-name" title={item.name}>{item.name}</div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
-                    <span className="media-type">{TYPE_LABELS[item.type] || item.type}</span>
+                    <span className="media-type">{TYPE_LABELS[item.type] || item.type} {conversionBadge(item)}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                       {(item.type === 'image' || item.type === 'video') && (
                         <button

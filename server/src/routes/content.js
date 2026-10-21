@@ -3,7 +3,7 @@ const multer  = require('multer')
 const path    = require('path')
 const fs      = require('fs')
 const { db }  = require('../db')
-const { queueConversion } = require('../videoConvert')
+const { queueConversion, getStatus: conversionStatus } = require('../videoConvert')
 
 const uploadsDir = path.join(__dirname, '../../../uploads')
 
@@ -35,6 +35,11 @@ module.exports = function contentRoutes(_io) {
       const items = await db.media.allForCompany(req.user.company_id)
       res.json(items.sort((a, b) => b.created_at.localeCompare(a.created_at)))
     } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
+  // Andamento da conversão de vídeos para H.264 (aviso na Biblioteca)
+  router.get('/conversions', (req, res) => {
+    res.json(conversionStatus(req.user.company_id))
   })
 
   router.post('/upload', upload.single('file'), async (req, res) => {

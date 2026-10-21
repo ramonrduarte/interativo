@@ -41,6 +41,7 @@ export const api = {
   addExternal: (data) => req('POST', '/content/external', data),
   updateContent: (id, data) => req('PUT', `/content/${id}`, data),
   deleteContent: (id) => req('DELETE', `/content/${id}`),
+  getConversions: () => req('GET', '/content/conversions'),
 
   // Layouts
   getLayouts: () => req('GET', '/layouts'),
