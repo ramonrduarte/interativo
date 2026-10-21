@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { api } from '../api.js'
+import { Layers, Plus, ArrowUp, ArrowDown } from 'lucide-react'
 
 export default function PlaylistGroups() {
   const [groups, setGroups]         = useState([])
@@ -101,7 +102,7 @@ export default function PlaylistGroups() {
           <h1 className="page-title">Grupos de Playlists</h1>
           <p className="page-subtitle">Agrupe playlists para exibir em sequência em uma tela</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreate}>+ Novo Grupo</button>
+        <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> Novo grupo</button>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -123,7 +124,7 @@ export default function PlaylistGroups() {
                 onClick={() => setExpanded(expanded === g.id ? null : g.id)}>
                 {expanded === g.id ? 'Fechar' : 'Gerenciar'}
               </button>
-              <button className="btn btn-secondary btn-sm" style={{ color: '#e53e3e' }}
+              <button className="btn btn-secondary btn-sm text-danger"
                 onClick={() => handleDelete(g)}>
                 Excluir
               </button>
@@ -131,7 +132,7 @@ export default function PlaylistGroups() {
 
             {/* Expanded: playlists list */}
             {expanded === g.id && (
-              <div style={{ borderTop: '1px solid #e2e8f0', background: '#f8f9fa' }}>
+              <div style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-2)' }}>
                 {g.playlists.length === 0 ? (
                   <p className="text-sm text-muted" style={{ padding: '12px 20px' }}>
                     Nenhuma playlist neste grupo ainda.
@@ -141,7 +142,7 @@ export default function PlaylistGroups() {
                     {g.playlists.map((pl, idx) => (
                       <div key={pl.item_id} style={{
                         display: 'flex', alignItems: 'center', gap: 10,
-                        background: '#fff', border: '1px solid #e2e8f0',
+                        background: 'var(--surface)', border: '1px solid var(--border)',
                         borderRadius: 8, padding: '10px 14px',
                       }}>
                         <span className="text-muted text-sm" style={{ width: 24, textAlign: 'center' }}>
@@ -152,10 +153,10 @@ export default function PlaylistGroups() {
                           <div className="text-sm text-muted">{pl.slide_count} slides</div>
                         </div>
                         <button className="btn btn-secondary btn-sm" style={{ padding: '2px 8px' }}
-                          onClick={() => handleMoveUp(g, idx)} disabled={idx === 0}>↑</button>
+                          onClick={() => handleMoveUp(g, idx)} disabled={idx === 0} title="Subir"><ArrowUp size={13} /></button>
                         <button className="btn btn-secondary btn-sm" style={{ padding: '2px 8px' }}
-                          onClick={() => handleMoveDown(g, idx)} disabled={idx === g.playlists.length - 1}>↓</button>
-                        <button className="btn btn-secondary btn-sm" style={{ color: '#e53e3e' }}
+                          onClick={() => handleMoveDown(g, idx)} disabled={idx === g.playlists.length - 1} title="Descer"><ArrowDown size={13} /></button>
+                        <button className="btn btn-secondary btn-sm text-danger"
                           onClick={() => handleRemovePlaylist(g.id, pl.item_id)}>
                           Remover
                         </button>
@@ -189,7 +190,7 @@ export default function PlaylistGroups() {
                     <button className="btn btn-secondary btn-sm"
                       onClick={() => { setAddingTo(g.id); setSelectedPl('') }}
                       disabled={availablePlaylists(g).length === 0}>
-                      + Adicionar Playlist
+                      <Plus size={14} /> Adicionar playlist
                     </button>
                   )}
                 </div>
@@ -200,7 +201,7 @@ export default function PlaylistGroups() {
 
         {groups.length === 0 && (
           <div className="empty-state">
-            <div className="empty-state-icon">📋</div>
+            <div className="empty-state-icon"><Layers size={40} strokeWidth={1.5} /></div>
             <p className="empty-state-text">Nenhum grupo criado ainda.</p>
             <p className="text-muted text-sm mt-2">
               Crie um grupo e adicione playlists para exibir em sequência na TV.

@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { api } from '../api.js'
 import socket from '../socket.js'
+import { Link2, Copy, Check, Tv, Globe, Moon, Radio, Plus, X, Clock, Smartphone, Monitor, Layers, Trash2 } from 'lucide-react'
+
+const iconInline = { verticalAlign: '-2px' }
 
 // Aparelhos conectados a uma tela (app Android ou navegador)
 function DeviceList({ devices }) {
@@ -19,9 +22,9 @@ function DeviceList({ devices }) {
         ].filter(Boolean).join(' · ')
         return (
           <div key={d.socketId} style={{ fontSize: 12, lineHeight: 1.3 }}>
-            <span style={{ fontWeight: 600 }}>{isApp ? '📺' : '🌐'} {name}</span>
+            <span style={{ fontWeight: 600 }}>{isApp ? <Tv size={13} style={iconInline} /> : <Globe size={13} style={iconInline} />} {name}</span>
             {d.power === 'standby' && (
-              <span className="badge badge-gray" style={{ marginLeft: 6, fontSize: 10 }}>🌙 Fora do horário</span>
+              <span className="badge badge-gray" style={{ marginLeft: 6, fontSize: 10 }}><Moon size={10} /> Fora do horário</span>
             )}
             {details && <div className="text-muted">{details}</div>}
           </div>
@@ -93,9 +96,10 @@ function PowerScheduleEditor({ value, onChange }) {
                 <input type="time" className="form-control" style={{ width: 120 }}
                   value={r.off} onChange={e => setRule(i, { off: e.target.value })} />
                 {rules.length > 1 && (
-                  <button type="button" className="btn btn-danger btn-sm" style={{ marginLeft: 'auto' }}
+                  <button type="button" className="btn btn-ghost btn-sm text-danger" style={{ marginLeft: 'auto' }}
+                    title="Remover horário"
                     onClick={() => onChange({ ...power, rules: rules.filter((_, idx) => idx !== i) })}>
-                    ✕
+                    <Trash2 size={14} />
                   </button>
                 )}
               </div>
@@ -128,34 +132,26 @@ function TvLinkBanner({ pairingToken }) {
   }
 
   return (
-    <div style={{
-      background: '#f0f7ff', border: '1px solid #bfdbfe', borderRadius: 10,
-      padding: '14px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 14,
-    }}>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 600, fontSize: 14, color: '#1e40af', marginBottom: 4 }}>
-          Link de acesso da TV
+    <div className="callout" style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 14 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="callout-title" style={{ marginBottom: 4 }}>
+          <Link2 size={16} /> Link de acesso da TV
         </div>
-        <div style={{ fontSize: 13, color: '#555', marginBottom: 6 }}>
+        <div className="text-muted" style={{ fontSize: 13, marginBottom: 8 }}>
           Abra este link no navegador da TV. Cada empresa tem seu próprio link — isso garante que somente suas telas possam ser pareadas.
         </div>
         {pairingToken && (
-          <div style={{ fontSize: 13, color: '#555', marginBottom: 6 }}>
-            No app <strong>Interativa Player</strong>, use <em>Parear com código</em> e informe o código da empresa:{' '}
-            <span style={{ fontFamily: 'monospace', fontSize: 18, fontWeight: 700, letterSpacing: 3, color: '#1e40af' }}>
+          <div className="text-muted" style={{ fontSize: 13, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            No app <strong style={{ color: 'var(--text)' }}>Interativa Player</strong>, use <em>Parear com código</em> e informe o código da empresa:
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 17, fontWeight: 700, letterSpacing: 3, color: 'var(--accent-text)' }}>
               {pairingToken}
             </span>
           </div>
         )}
-        <div style={{
-          fontFamily: 'monospace', fontSize: 13, background: '#e0f2fe',
-          padding: '6px 10px', borderRadius: 6, color: '#0c4a6e', wordBreak: 'break-all',
-        }}>
-          {tvUrl}
-        </div>
+        <div className="code-chip">{tvUrl}</div>
       </div>
       <button className="btn btn-secondary btn-sm" onClick={copy} style={{ whiteSpace: 'nowrap' }}>
-        {copied ? '✓ Copiado' : 'Copiar link'}
+        {copied ? <><Check size={14} /> Copiado</> : <><Copy size={14} /> Copiar link</>}
       </button>
     </div>
   )
@@ -197,7 +193,7 @@ function PairModal({ screens, onClose }) {
       <div className="modal" style={{ maxWidth: 440 }}>
         <div className="modal-header">
           <span className="modal-title">Parear TV</span>
-          <button className="btn-icon" onClick={onClose}>✕</button>
+          <button className="btn-icon" onClick={onClose}><X size={18} /></button>
         </div>
         <div className="modal-body">
           <p className="text-sm text-muted" style={{ marginBottom: 16 }}>
@@ -206,8 +202,8 @@ function PairModal({ screens, onClose }) {
           </p>
 
           {waiting.length > 0 && (
-            <div style={{ marginBottom: 16, padding: '10px 12px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#15803d', marginBottom: 6 }}>
+            <div className="alert alert-success" style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
                 TVs aguardando pareamento:
               </div>
               {waiting.map(w => (
@@ -241,12 +237,7 @@ function PairModal({ screens, onClose }) {
           </div>
 
           {msg && (
-            <div style={{
-              padding: '10px 12px', borderRadius: 8, fontSize: 13,
-              background: status === 'ok' ? '#f0fdf4' : '#fef2f2',
-              color: status === 'ok' ? '#15803d' : '#dc2626',
-              border: `1px solid ${status === 'ok' ? '#bbf7d0' : '#fecaca'}`,
-            }}>
+            <div className={`alert ${status === 'ok' ? 'alert-success' : 'alert-error'}`}>
               {msg}
             </div>
           )}
@@ -351,8 +342,8 @@ export default function Screens() {
           <p className="page-subtitle">Configure suas TVs corporativas</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-secondary" onClick={() => setShowPair(true)}>📡 Parear TV</button>
-          <button className="btn btn-primary" onClick={openCreate}>+ Nova Tela</button>
+          <button className="btn btn-secondary" onClick={() => setShowPair(true)}><Radio size={15} /> Parear TV</button>
+          <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> Nova tela</button>
         </div>
       </div>
 
@@ -360,7 +351,7 @@ export default function Screens() {
 
       {screens.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">📺</div>
+          <div className="empty-state-icon"><Monitor size={40} strokeWidth={1.5} /></div>
           <p className="empty-state-text">Nenhuma tela cadastrada ainda.</p>
         </div>
       ) : (
@@ -386,16 +377,16 @@ export default function Screens() {
                       <div style={{ fontWeight: 500 }}>{s.name}</div>
                       <div className="text-sm text-muted" style={{ fontFamily: 'monospace' }}>{s.token?.slice(0, 8)}…</div>
                       {powerSummary(s.power_schedule) && (
-                        <div className="text-sm text-muted">⏰ {powerSummary(s.power_schedule)}</div>
+                        <div className="text-sm text-muted"><Clock size={12} style={iconInline} /> {powerSummary(s.power_schedule)}</div>
                       )}
                     </td>
                     <td>
-                      {s.orientation === 'portrait' ? '📱 Vertical' : '🖥️ Horizontal'}
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{s.orientation === 'portrait' ? <><Smartphone size={15} /> Vertical</> : <><Monitor size={15} /> Horizontal</>}</span>
                     </td>
                     <td>
                       {content
                         ? <span className={`badge ${content.type === 'group' ? 'badge-blue' : 'badge-gray'}`}>
-                            {content.type === 'group' ? '📋 ' : ''}{content.label}
+                            {content.type === 'group' ? <Layers size={11} /> : null}{content.label}
                           </span>
                         : <span className="text-muted">—</span>}
                     </td>
@@ -415,7 +406,7 @@ export default function Screens() {
                     <td>
                       <div className="table-actions">
                         <button className="btn btn-secondary btn-sm" onClick={() => openEdit(s)}>Editar</button>
-                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(s)}>✕</button>
+                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(s)} title="Excluir tela"><Trash2 size={14} /></button>
                       </div>
                     </td>
                   </tr>
@@ -431,7 +422,7 @@ export default function Screens() {
           <div className="modal" style={{ maxWidth: 480 }}>
             <div className="modal-header">
               <span className="modal-title">{modal === 'create' ? 'Nova Tela' : `Editar: ${modal.name}`}</span>
-              <button className="btn-icon" onClick={closeModal}>✕</button>
+              <button className="btn-icon" onClick={closeModal}><X size={18} /></button>
             </div>
             <div className="modal-body">
 
@@ -449,8 +440,8 @@ export default function Screens() {
                 <label className="form-label">Orientação da TV</label>
                 <div style={{ display: 'flex', gap: 10 }}>
                   {[
-                    { value: 'landscape', label: 'Horizontal', icon: '🖥️', desc: 'TV deitada (padrão)' },
-                    { value: 'portrait',  label: 'Vertical',   icon: '📱', desc: 'TV em pé / girada' },
+                    { value: 'landscape', label: 'Horizontal', icon: Monitor, desc: 'TV deitada (padrão)' },
+                    { value: 'portrait',  label: 'Vertical',   icon: Smartphone, desc: 'TV em pé / girada' },
                   ].map(opt => (
                     <button
                       key={opt.value}
@@ -459,11 +450,11 @@ export default function Screens() {
                       style={{
                         flex: 1, padding: '12px 8px', borderRadius: 8, cursor: 'pointer', border: '2px solid',
                         borderColor: form.orientation === opt.value ? 'var(--accent)' : 'var(--border)',
-                        background: form.orientation === opt.value ? 'rgba(45,110,245,.08)' : 'var(--bg)',
+                        background: form.orientation === opt.value ? 'var(--accent-soft)' : 'var(--bg)',
                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                       }}
                     >
-                      <span style={{ fontSize: 28 }}>{opt.icon}</span>
+                      <opt.icon size={26} strokeWidth={1.6} color={form.orientation === opt.value ? 'var(--accent)' : 'var(--text-muted)'} />
                       <span style={{ fontWeight: 700, fontSize: 13, color: form.orientation === opt.value ? 'var(--accent)' : 'var(--text)' }}>{opt.label}</span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{opt.desc}</span>
                     </button>

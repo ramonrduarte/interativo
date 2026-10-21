@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { api } from '../api.js'
 import socket from '../socket.js'
+import { Monitor, Send, Eye, Copy, RefreshCw } from 'lucide-react'
 
 export default function Control() {
   const [screens, setScreens] = useState([])
@@ -50,12 +51,12 @@ export default function Control() {
           <h1 className="page-title">Controle ao Vivo</h1>
           <p className="page-subtitle">Gerencie e empurre conteúdo para suas TVs em tempo real</p>
         </div>
-        <button className="btn btn-secondary" onClick={load}>↻ Atualizar</button>
+        <button className="btn btn-secondary" onClick={load}><RefreshCw size={14} /> Atualizar</button>
       </div>
 
       {merged.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">📺</div>
+          <div className="empty-state-icon"><Monitor size={40} strokeWidth={1.5} /></div>
           <p className="empty-state-text">Nenhuma tela cadastrada.</p>
           <p className="text-muted text-sm mt-2">Vá em <strong>Telas</strong> para adicionar sua primeira TV.</p>
         </div>
@@ -98,7 +99,7 @@ export default function Control() {
                 <div>
                   <p className="text-sm text-muted" style={{ marginBottom: 4 }}>URL para abrir na TV:</p>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <code style={{ fontSize: 11, background: '#f4f5f7', padding: '4px 8px', borderRadius: 4, flex: 1, wordBreak: 'break-all' }}>
+                    <code className="code-chip" style={{ fontSize: 11, padding: '4px 8px', flex: 1 }}>
                       {getTvUrl(screen.token)}
                     </code>
                     <button
@@ -118,7 +119,7 @@ export default function Control() {
                   disabled={pushing[screen.id]}
                   style={{ flex: 1 }}
                 >
-                  {pushing[screen.id] ? <><span className="spinner" /> Enviando...</> : '📡 Enviar para TV'}
+                  {pushing[screen.id] ? <><span className="spinner" /> Enviando...</> : <><Send size={14} /> Enviar para TV</>}
                 </button>
                 <a
                   href={getTvUrl(screen.token)}
@@ -126,7 +127,7 @@ export default function Control() {
                   rel="noopener noreferrer"
                   className="btn btn-secondary"
                 >
-                  👁 Preview
+                  <Eye size={14} /> Preview
                 </a>
               </div>
             </div>

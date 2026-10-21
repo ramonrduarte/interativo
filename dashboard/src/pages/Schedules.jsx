@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { api } from '../api.js'
+import { CalendarClock, Plus, X, Trash2 } from 'lucide-react'
 
 const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const DAY_COLORS = ['#7c3aed', '#2563eb', '#0891b2', '#059669', '#d97706', '#dc2626', '#7c3aed']
@@ -136,7 +137,7 @@ function ScheduleModal({ initial, screens, playlists, onSave, onDelete, onClose 
       <div className="modal" style={{ maxWidth: 540 }}>
         <div className="modal-header">
           <span className="modal-title">{initial.id ? 'Editar Agendamento' : 'Novo Agendamento'}</span>
-          <button className="btn-icon" onClick={onClose}>✕</button>
+          <button className="btn-icon" onClick={onClose}><X size={18} /></button>
         </div>
         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
@@ -374,7 +375,7 @@ export default function Schedules() {
         </div>
         <button className="btn btn-primary"
           onClick={() => setModal({ ...EMPTY_FORM, screen_id: selectedScreen || '' })}>
-          + Novo Agendamento
+          <Plus size={15} /> Novo agendamento
         </button>
       </div>
 
@@ -448,8 +449,8 @@ export default function Schedules() {
       {/* List */}
       {schedules.length === 0 ? (
         <div className="empty-state card">
-          <div className="empty-state-icon">📅</div>
-          <p className="empty-state-text">Nenhum agendamento ainda. Clique em "+ Novo Agendamento" para começar.</p>
+          <div className="empty-state-icon"><CalendarClock size={40} strokeWidth={1.5} /></div>
+          <p className="empty-state-text">Nenhum agendamento ainda. Clique em “Novo agendamento” para começar.</p>
           <p className="text-sm text-muted">Sem agendamentos, cada tela exibe sua playlist padrão o tempo todo.</p>
         </div>
       ) : (
@@ -503,7 +504,7 @@ export default function Schedules() {
                   <td>
                     <div className="table-actions">
                       <button className="btn btn-secondary btn-sm" onClick={() => openEdit(s)}>Editar</button>
-                      <button className="btn btn-danger btn-sm" onClick={() => handleDelete(s.id)}>✕</button>
+                      <button className="btn btn-danger btn-sm" onClick={() => handleDelete(s.id)} title="Excluir"><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>

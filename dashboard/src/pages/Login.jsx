@@ -1,11 +1,14 @@
 import React, { useState } from 'react'
+import { Tv, Moon, Sun, LogIn } from 'lucide-react'
 import { api } from '../api.js'
+import { useTheme } from '../theme.js'
 
 export default function Login({ onLogin }) {
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
+  const [theme, toggleTheme]    = useTheme()
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -24,72 +27,56 @@ export default function Login({ onLogin }) {
 
   return (
     <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: '#f0f2f5',
+      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+      background: 'radial-gradient(1200px 600px at 50% -10%, var(--accent-soft), transparent 70%), var(--bg)',
     }}>
+      <button className="btn btn-ghost btn-sm" onClick={toggleTheme} style={{ position: 'fixed', top: 16, right: 16 }}>
+        {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+        {theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
+      </button>
+
       <div style={{ width: '100%', maxWidth: 380 }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ fontSize: 40, marginBottom: 8 }}>📺</div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1a1a2e', margin: 0 }}>Interativa</h1>
-          <p style={{ color: '#666', marginTop: 4, marginBottom: 0 }}>Faça login para continuar</p>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div className="sidebar-logo-mark" style={{ width: 48, height: 48, borderRadius: 14, margin: '0 auto 14px' }}>
+            <Tv size={24} strokeWidth={2.2} />
+          </div>
+          <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-.02em' }}>Interativa</h1>
+          <p className="text-muted" style={{ marginTop: 4 }}>Entre para gerenciar suas TVs</p>
         </div>
 
-        <div className="card" style={{ padding: 32 }}>
+        <div className="card" style={{ padding: 28, boxShadow: 'var(--shadow-lg)' }}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
-              <label style={{ display: 'block', marginBottom: 6, fontWeight: 500, fontSize: 14 }}>
-                Usuário ou E-mail
-              </label>
+              <label className="form-label">Usuário ou e-mail</label>
               <input
                 type="text"
                 className="input"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder="Admin"
+                placeholder="seu@email.com"
+                autoComplete="username"
                 required
                 autoFocus
-                style={{ width: '100%' }}
               />
             </div>
 
             <div>
-              <label style={{ display: 'block', marginBottom: 6, fontWeight: 500, fontSize: 14 }}>
-                Senha
-              </label>
+              <label className="form-label">Senha</label>
               <input
                 type="password"
                 className="input"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••"
+                autoComplete="current-password"
                 required
-                style={{ width: '100%' }}
               />
             </div>
 
-            {error && (
-              <div style={{
-                background: '#fff5f5',
-                border: '1px solid #feb2b2',
-                borderRadius: 6,
-                padding: '10px 14px',
-                color: '#c53030',
-                fontSize: 14,
-              }}>
-                {error}
-              </div>
-            )}
+            {error && <div className="alert alert-error">{error}</div>}
 
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={loading}
-              style={{ marginTop: 4 }}
-            >
-              {loading ? 'Entrando...' : 'Entrar'}
+            <button type="submit" className="btn btn-primary" disabled={loading} style={{ marginTop: 4, padding: '10px 14px' }}>
+              {loading ? <><span className="spinner" /> Entrando…</> : <><LogIn size={16} /> Entrar</>}
             </button>
           </form>
         </div>

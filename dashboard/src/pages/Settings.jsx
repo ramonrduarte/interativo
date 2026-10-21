@@ -36,7 +36,7 @@ function AppReleaseCard() {
       <p className="text-sm text-muted" style={{ marginBottom: 16 }}>
         Envie a versão nova do app e todas as TVs se atualizam sozinhas.
       </p>
-      <div style={{ padding: '10px 14px', background: '#f8f9fa', borderRadius: 8, marginBottom: 16, fontSize: 14 }}>
+      <div style={{ padding: '10px 14px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 16, fontSize: 14 }}>
         {release
           ? <>Versão publicada: <strong>{release.versionName}</strong> (código {release.versionCode}) · {(release.size / 1048576).toFixed(1)} MB · {new Date(release.publishedAt).toLocaleString('pt-BR')}</>
           : <span className="text-muted">Nenhuma versão publicada ainda.</span>}
@@ -44,12 +44,7 @@ function AppReleaseCard() {
       <form onSubmit={handlePublish} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <input type="file" accept=".apk" onChange={e => setFile(e.target.files?.[0] || null)} />
         {msg && (
-          <div style={{
-            padding: '10px 14px', borderRadius: 6, fontSize: 14,
-            background: msg.type === 'success' ? '#f0fff4' : '#fff5f5',
-            border: `1px solid ${msg.type === 'success' ? '#9ae6b4' : '#feb2b2'}`,
-            color: msg.type === 'success' ? '#276749' : '#c53030',
-          }}>
+          <div className={`alert ${msg.type === 'success' ? 'alert-success' : 'alert-error'}`}>
             {msg.text}
           </div>
         )}
@@ -154,12 +149,7 @@ export default function Settings({ user }) {
                 onChange={e => setPwd(p => ({ ...p, confirm: e.target.value }))} required style={{ width: '100%' }} />
             </div>
             {pwdMsg && (
-              <div style={{
-                padding: '10px 14px', borderRadius: 6, fontSize: 14,
-                background: pwdMsg.type === 'success' ? '#f0fff4' : '#fff5f5',
-                border: `1px solid ${pwdMsg.type === 'success' ? '#9ae6b4' : '#feb2b2'}`,
-                color: pwdMsg.type === 'success' ? '#276749' : '#c53030',
-              }}>
+              <div className={`alert ${pwdMsg.type === 'success' ? 'alert-success' : 'alert-error'}`}>
                 {pwdMsg.text}
               </div>
             )}
@@ -180,7 +170,7 @@ export default function Settings({ user }) {
             {users.map(u => (
               <div key={u.id} style={{
                 display: 'flex', alignItems: 'center', gap: 12,
-                padding: '10px 14px', background: '#f8f9fa', borderRadius: 8,
+                padding: '10px 14px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8,
               }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 500, fontSize: 14 }}>{u.name}</div>
@@ -224,12 +214,7 @@ export default function Settings({ user }) {
                 onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))} style={{ width: '100%' }} />
             </div>
             {userMsg && (
-              <div style={{
-                padding: '10px 14px', borderRadius: 6, fontSize: 14,
-                background: userMsg.type === 'success' ? '#f0fff4' : '#fff5f5',
-                border: `1px solid ${userMsg.type === 'success' ? '#9ae6b4' : '#feb2b2'}`,
-                color: userMsg.type === 'success' ? '#276749' : '#c53030',
-              }}>
+              <div className={`alert ${userMsg.type === 'success' ? 'alert-success' : 'alert-error'}`}>
                 {userMsg.text}
               </div>
             )}

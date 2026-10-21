@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { api } from '../api.js'
+import { Newspaper, Plus, X, Trash2 } from 'lucide-react'
 
 const EMPTY_MSG = { text: '' }
 const EMPTY = { name: '', messages: [{ ...EMPTY_MSG }], speed: 60, font_size: 32, color: '#ffffff', bg_color: '#dc2626' }
@@ -85,12 +86,12 @@ export default function Tickers() {
           <h1 className="page-title">Tickers</h1>
           <p className="page-subtitle">Mensagens em rolagem no rodapé da TV</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreate}>+ Novo Ticker</button>
+        <button className="btn btn-primary" onClick={openCreate}><Plus size={15} /> Novo ticker</button>
       </div>
 
       {tickers.length === 0 ? (
         <div className="empty-state card">
-          <div className="empty-state-icon">📰</div>
+          <div className="empty-state-icon"><Newspaper size={40} strokeWidth={1.5} /></div>
           <p className="empty-state-text">Nenhum ticker criado ainda.</p>
         </div>
       ) : (
@@ -112,7 +113,7 @@ export default function Tickers() {
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                     <button className="btn btn-secondary btn-sm" onClick={() => openEdit(t)}>Editar</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => handleDelete(t)}>✕</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => handleDelete(t)} title="Excluir"><Trash2 size={14} /></button>
                   </div>
                 </div>
               </div>
@@ -126,7 +127,7 @@ export default function Tickers() {
           <div className="modal" style={{ maxWidth: 560 }}>
             <div className="modal-header">
               <span className="modal-title">{modal === 'create' ? 'Novo Ticker' : 'Editar Ticker'}</span>
-              <button className="btn-icon" onClick={() => setModal(null)}>✕</button>
+              <button className="btn-icon" onClick={() => setModal(null)}><X size={18} /></button>
             </div>
             <div className="modal-body">
 
@@ -160,8 +161,8 @@ export default function Tickers() {
                         placeholder="Texto que vai rolar na tela..."
                         style={{ flex: 1 }}
                       />
-                      <button className="btn-icon" style={{ fontSize: 13, color: '#dc2626', flexShrink: 0 }}
-                        onClick={() => removeMsg(i)} disabled={form.messages.length === 1}>🗑</button>
+                      <button className="btn-icon text-danger" style={{ flexShrink: 0 }}
+                        onClick={() => removeMsg(i)} disabled={form.messages.length === 1}><Trash2 size={14} /></button>
                     </div>
                   ))}
                 </div>

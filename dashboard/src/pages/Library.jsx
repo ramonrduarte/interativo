@@ -1,7 +1,73 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { api } from '../api.js'
+import {
+  Image as ImageIcon, Film, Youtube, Globe, Type, Clock, Tag, Radio, FileQuestion, Ruler, Upload, Plus, X,
+  Trash2, RefreshCw, Hourglass, FolderOpen, Link2, ClipboardPaste, Search, Play, Pencil,
+} from 'lucide-react'
 
-const TYPE_ICONS = { image: '🖼️', video: '🎬', youtube: '▶️', webpage: '🌐', text: '📝', clock: '🕐', priceboard: '💰', iptvchannel: '📡' }
+const TYPE_ICONS = { image: ImageIcon, video: Film, youtube: Youtube, webpage: Globe, text: Type, clock: Clock, priceboard: Tag, iptvchannel: Radio }
+function TypeIcon({ type, size = 14, ...rest }) {
+  const Icon = TYPE_ICONS[type] || FileQuestion
+  return <Icon size={size} {...rest} />
+}
+
+// Nome do item com edição no lugar: clique (ou lápis) → Enter salva, Esc cancela
+function EditableName({ item, onSave }) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(item.name)
+  useEffect(() => { if (!editing) setValue(item.name) }, [item.name, editing])
+
+  function finish(save) {
+    setEditing(false)
+    if (save) onSave(value)
+    else setValue(item.name)
+  }
+
+  if (editing) {
+    return (
+      <input
+        className="input"
+        autoFocus
+        value={value}
+        maxLength={120}
+        onChange={e => setValue(e.target.value)}
+        onFocus={e => e.target.select()}
+        onBlur={() => finish(true)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') { e.preventDefault(); finish(true) }
+          if (e.key === 'Escape') { e.preventDefault(); finish(false) }
+        }}
+        onClick={e => e.stopPropagation()}
+        style={{ padding: '3px 7px', fontSize: 13, fontWeight: 600 }}
+      />
+    )
+  }
+  return (
+    <div className="media-name-row">
+      <div className="media-name" title={`${item.name} — clique para renomear`} onClick={() => setEditing(true)}>{item.name}</div>
+      <button className="btn-icon media-rename" title="Renomear" onClick={() => setEditing(true)}><Pencil size={12} /></button>
+    </div>
+  )
+}
+
+// Miniatura: mostra o ícone do tipo até a imagem carregar (e se ela não existir)
+function MediaThumb({ src, type }) {
+  const [state, setState] = useState(src ? 'loading' : 'none')
+  useEffect(() => { setState(src ? 'loading' : 'none') }, [src])
+  return (
+    <div className="media-thumb-placeholder" style={{ position: 'relative', overflow: 'hidden' }}>
+      {state !== 'loaded' && <TypeIcon type={type} size={30} strokeWidth={1.5} />}
+      {src && state !== 'error' && (
+        <img
+          src={src} alt="" className="media-thumb" loading="lazy"
+          onLoad={() => setState('loaded')}
+          onError={() => setState('error')}
+          style={{ position: 'absolute', inset: 0, opacity: state === 'loaded' ? 1 : 0, transition: 'opacity .2s' }}
+        />
+      )}
+    </div>
+  )
+}
 const TYPE_LABELS = { image: 'Imagem', video: 'Vídeo', youtube: 'YouTube', webpage: 'Página Web', text: 'Texto', clock: 'Relógio', priceboard: 'Tabela de Preços', iptvchannel: 'Canal IPTV' }
 
 export default function Library() {
@@ -52,10 +118,10 @@ export default function Library() {
 
   function conversionBadge(item) {
     if (conv.active?.mediaId === item.id) {
-      return <span className="badge badge-blue" title="Convertendo para H.264">🔄 {conv.active.percent ?? 0}%</span>
+      return <span className="badge badge-blue" title="Convertendo para H.264"><RefreshCw size={10} /> {conv.active.percent ?? 0}%</span>
     }
     if (conv.waiting.some(w => w.mediaId === item.id)) {
-      return <span className="badge badge-gray" title="Aguardando conversão para H.264">⏳ Na fila</span>
+      return <span className="badge badge-gray" title="Aguardando conversão para H.264"><Hourglass size={10} /> Na fila</span>
     }
     return null
   }
@@ -104,6 +170,19 @@ export default function Library() {
     load()
   }
 
+  // Renomeia só o nome exibido (o arquivo no servidor continua o mesmo)
+  async function handleRename(item, name) {
+    const clean = name.trim()
+    if (!clean || clean === item.name) return
+    setItems(list => list.map(i => i.id === item.id ? { ...i, name: clean } : i))
+    try {
+      await api.updateContent(item.id, { name: clean, url: item.url, content: item.content, object_fit: item.object_fit })
+    } catch (e) {
+      alert('Não foi possível renomear: ' + e.message)
+      load()
+    }
+  }
+
   async function handleToggleFit(item) {
     const next = (item.object_fit || 'cover') === 'cover' ? 'contain' : 'cover'
     await api.updateContent(item.id, { name: item.name, url: item.url, content: item.content, object_fit: next })
@@ -147,6 +226,8 @@ export default function Library() {
 
   function getThumbUrl(item) {
     if (item.type === 'image' && item.filename) return `/uploads/${item.filename}`
+    // Miniatura gerada pelo servidor (ffmpeg) ao lado do vídeo: nome.jpg
+    if (item.type === 'video' && item.filename) return `/uploads/${item.filename.replace(/\.[^./]+$/, '')}.jpg`
     if (item.type === 'youtube' && item.url) {
       const m = item.url.match(/embed\/([A-Za-z0-9_-]{11})/)
       return m ? `https://img.youtube.com/vi/${m[1]}/mqdefault.jpg` : null
@@ -290,17 +371,17 @@ export default function Library() {
           <p className="page-subtitle">Gerencie imagens, vídeos e conteúdos</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-secondary" onClick={() => setShowSizeGuide(s => !s)}>📐 Tamanhos</button>
-          <button className="btn btn-secondary" onClick={() => fileInputRef.current.click()}>⬆ Upload</button>
+          <button className="btn btn-secondary" onClick={() => setShowSizeGuide(s => !s)}><Ruler size={15} /> Tamanhos</button>
+          <button className="btn btn-secondary" onClick={() => fileInputRef.current.click()}><Upload size={15} /> Upload</button>
           <div style={{ position: 'relative' }}>
             <select className="btn btn-primary" style={{ appearance: 'none', paddingRight: 28 }} onChange={e => { if (e.target.value) { setModal({ type: e.target.value }); setForm({}); e.target.value = '' } }}>
               <option value="">+ Adicionar conteúdo</option>
               <option value="youtube">▶️ YouTube</option>
-              <option value="webpage">🌐 Página Web</option>
-              <option value="text">📝 Texto</option>
-              <option value="clock">🕐 Relógio</option>
-              <option value="priceboard">💰 Tabela de Preços</option>
-              <option value="iptv">📡 IPTV / Stream</option>
+              <option value="webpage">Página Web</option>
+              <option value="text">Texto</option>
+              <option value="clock">Relógio</option>
+              <option value="priceboard">Tabela de Preços</option>
+              <option value="iptv">IPTV / Stream</option>
             </select>
           </div>
         </div>
@@ -314,12 +395,12 @@ export default function Library() {
           <div className="card-body">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>📐 Guia de Tamanhos — TV 1920×1080 (Full HD)</div>
+                <div style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}><Ruler size={16} /> Guia de Tamanhos — TV 1920×1080 (Full HD)</div>
                 <div className="text-sm text-muted" style={{ marginTop: 2 }}>
                   Use <strong>Preencher</strong> para fotos/vídeos e <strong>Caber</strong> para logos e conteúdo com texto nas bordas.
                 </div>
               </div>
-              <button className="btn-icon" onClick={() => setShowSizeGuide(false)}>✕</button>
+              <button className="btn-icon" onClick={() => setShowSizeGuide(false)}><X size={18} /></button>
             </div>
             <table className="table" style={{ margin: 0 }}>
               <thead>
@@ -358,21 +439,16 @@ export default function Library() {
 
       {/* Conversão de vídeos em andamento */}
       {(conv.active || conv.waiting.length > 0) && (
-        <div style={{
-          background: '#f0f7ff', border: '1px solid #bfdbfe', borderRadius: 10,
-          padding: '12px 16px', marginBottom: 16,
-        }}>
-          <div style={{ fontWeight: 600, fontSize: 14, color: '#1e40af', marginBottom: 6 }}>
-            🔄 Convertendo vídeos para o formato compatível com as TVs (H.264)
+        <div className="callout" style={{ marginBottom: 16 }}>
+          <div className="callout-title" style={{ marginBottom: 8 }}>
+            <RefreshCw size={15} className="spin-slow" /> Convertendo vídeos para o formato compatível com as TVs (H.264)
           </div>
           {conv.active && (
             <>
-              <div style={{ fontSize: 13, color: '#334155', marginBottom: 6 }}>
+              <div style={{ fontSize: 13, marginBottom: 8 }}>
                 <strong>{conv.active.name}</strong> — {conv.active.percent ?? 0}% · falta {fmtTime(conv.active.remainingSec)}
               </div>
-              <div style={{ background: '#dbeafe', borderRadius: 4, height: 6 }}>
-                <div style={{ width: (conv.active.percent ?? 0) + '%', background: 'var(--accent)', height: '100%', borderRadius: 4, transition: 'width .5s' }} />
-              </div>
+              <div className="progress"><div style={{ width: (conv.active.percent ?? 0) + '%' }} /></div>
             </>
           )}
           {conv.waiting.length > 0 && (
@@ -390,7 +466,7 @@ export default function Library() {
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
         {filterTypes.map(t => (
           <button key={t} className={`btn btn-sm ${filter === t ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setFilter(t)}>
-            {t === 'all' ? 'Todos' : TYPE_ICONS[t] + ' ' + TYPE_LABELS[t]}
+            {t === 'all' ? 'Todos' : <><TypeIcon type={t} /> {TYPE_LABELS[t]}</>}
           </button>
         ))}
       </div>
@@ -405,23 +481,19 @@ export default function Library() {
           onClick={() => fileInputRef.current.click()}
         >
           {uploadProgress
-            ? <><div style={{ fontWeight: 600 }}>{uploadProgress.name}</div><div style={{ marginTop: 8, background: '#e2e8f0', borderRadius: 4, height: 6 }}><div style={{ width: uploadProgress.pct + '%', background: 'var(--accent)', height: '100%', borderRadius: 4, transition: 'width .2s' }} /></div></>
-            : <><div style={{ fontSize: 32, marginBottom: 8 }}>📁</div><div>Arraste arquivos aqui ou clique para fazer upload</div><div className="text-sm text-muted" style={{ marginTop: 4 }}>Imagens (JPG, PNG, GIF, WebP) e Vídeos (MP4, WebM)</div></>
+            ? <><div style={{ fontWeight: 600 }}>{uploadProgress.name}</div><div className="progress" style={{ marginTop: 10 }}><div style={{ width: uploadProgress.pct + '%' }} /></div></>
+            : <><div style={{ marginBottom: 10, display: 'flex', justifyContent: 'center' }}><Upload size={28} strokeWidth={1.6} /></div><div>Arraste arquivos aqui ou clique para fazer upload</div><div className="text-sm text-muted" style={{ marginTop: 4 }}>Imagens (JPG, PNG, GIF, WebP) e Vídeos (MP4, WebM)</div></>
           }
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
           <span className="text-sm text-muted">Ajuste para novos uploads:</span>
-          <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
+          <div className="segmented">
             {[['cover', 'Preencher', 'Recorta para preencher a zona — ideal para fotos e vídeos'], ['contain', 'Caber', 'Exibe o conteúdo completo sem corte — ideal para logos e infográficos']].map(([val, label, tip]) => (
               <button
                 key={val}
                 title={tip}
                 onClick={() => setUploadFit(val)}
-                style={{
-                  padding: '4px 14px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
-                  background: uploadFit === val ? 'var(--accent)' : 'var(--bg-card)',
-                  color: uploadFit === val ? '#fff' : 'var(--text-muted)',
-                }}
+                className={uploadFit === val ? 'active' : ''}
               >{label}</button>
             ))}
           </div>
@@ -429,37 +501,35 @@ export default function Library() {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="empty-state"><div className="empty-state-icon">🖼️</div><p className="empty-state-text">Nenhum item encontrado.</p></div>
+        <div className="empty-state"><div className="empty-state-icon"><ImageIcon size={40} strokeWidth={1.5} /></div><p className="empty-state-text">Nenhum item encontrado</p><p className="text-sm" style={{ marginTop: 4 }}>Envie imagens ou vídeos, ou adicione outro tipo de conteúdo.</p></div>
       ) : (
         <div className="media-grid">
           {filtered.map(item => {
             const thumb = getThumbUrl(item)
             return (
               <div key={item.id} className="media-card">
-                {thumb
-                  ? <img src={thumb} alt={item.name} className="media-thumb" />
-                  : <div className="media-thumb-placeholder">{TYPE_ICONS[item.type] || '📄'}</div>
-                }
+                <div style={{ position: 'relative' }}>
+                  <MediaThumb src={thumb} type={item.type} />
+                  {item.type === 'video' && (
+                    <span className="media-chip"><Play size={10} fill="currentColor" />{item.video_duration ? fmtTime(item.video_duration) : 'Vídeo'}</span>
+                  )}
+                </div>
                 <div className="media-info">
-                  <div className="media-name" title={item.name}>{item.name}</div>
+                  <EditableName item={item} onSave={name => handleRename(item, name)} />
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
-                    <span className="media-type">{TYPE_LABELS[item.type] || item.type} {conversionBadge(item)}</span>
+                    <span className="media-type"><TypeIcon type={item.type} size={12} /> {TYPE_LABELS[item.type] || item.type} {conversionBadge(item)}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                       {(item.type === 'image' || item.type === 'video') && (
                         <button
                           title={(item.object_fit || 'cover') === 'cover' ? 'Preencher (clique para Caber)' : 'Caber (clique para Preencher)'}
                           onClick={() => handleToggleFit(item)}
-                          style={{
-                            fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, border: 'none',
-                            cursor: 'pointer', lineHeight: 1.4,
-                            background: (item.object_fit || 'cover') === 'cover' ? '#dbeafe' : '#f0fdf4',
-                            color: (item.object_fit || 'cover') === 'cover' ? '#1d4ed8' : '#15803d',
-                          }}
+                          className={`badge ${(item.object_fit || 'cover') === 'cover' ? 'badge-blue' : 'badge-success'}`}
+                          style={{ cursor: 'pointer', fontSize: 10 }}
                         >
                           {(item.object_fit || 'cover') === 'cover' ? 'Preencher' : 'Caber'}
                         </button>
                       )}
-                      <button className="btn-icon" style={{ fontSize: 12 }} onClick={() => handleDelete(item)}>🗑</button>
+                      <button className="btn-icon" title="Excluir" onClick={() => handleDelete(item)}><Trash2 size={14} /></button>
                     </div>
                   </div>
                 </div>
@@ -480,19 +550,18 @@ export default function Library() {
           <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(null)}>
             <div className="modal" style={{ maxWidth: 680, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
               <div className="modal-header">
-                <span className="modal-title">📡 IPTV / Stream ao Vivo</span>
-                <button className="btn-icon" onClick={() => setModal(null)}>✕</button>
+                <span className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Radio size={18} /> IPTV / Stream ao vivo</span>
+                <button className="btn-icon" onClick={() => setModal(null)}><X size={18} /></button>
               </div>
               <div className="modal-body" style={{ flex: 1, overflow: 'auto' }}>
 
                 {/* Tabs */}
-                <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                  {[['file', '📂 Arquivo .m3u'], ['url', '🔗 URL M3U'], ['text', '📋 Colar M3U'], ['direct', '📡 Stream direto']].map(([val, label]) => (
+                <div className="segmented" style={{ display: 'flex', marginBottom: 16 }}>
+                  {[['file', FolderOpen, 'Arquivo .m3u'], ['url', Link2, 'URL M3U'], ['text', ClipboardPaste, 'Colar M3U'], ['direct', Radio, 'Stream direto']].map(([val, Icon, label]) => (
                     <button key={val} onClick={() => { setIptvTab(val); setIptvChannels([]); setIptvInput(''); setIptvSelected(new Set()) }}
-                      style={{ flex: 1, padding: '8px 4px', fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer',
-                        background: iptvTab === val ? 'var(--accent)' : 'var(--bg-card)',
-                        color: iptvTab === val ? '#fff' : 'var(--text-muted)' }}>
-                      {label}
+                      className={iptvTab === val ? 'active' : ''}
+                      style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      <Icon size={13} /> {label}
                     </button>
                   ))}
                 </div>
@@ -515,7 +584,7 @@ export default function Library() {
                       <div style={{ color: 'var(--text-muted)' }}>Carregando canais…</div>
                     ) : (
                       <>
-                        <div style={{ fontSize: 36, marginBottom: 8 }}>📂</div>
+                        <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'center' }}><FolderOpen size={32} strokeWidth={1.5} /></div>
                         <div style={{ fontWeight: 600, marginBottom: 4 }}>Clique ou arraste o arquivo .m3u aqui</div>
                         <div className="text-sm text-muted">Suporta arquivos .m3u e .m3u8 de qualquer tamanho</div>
                       </>
@@ -534,7 +603,7 @@ export default function Library() {
                       }
                     </div>
                     <button className="btn btn-primary btn-sm" onClick={handleIptvParse} disabled={iptvLoading || !iptvInput.trim()}>
-                      {iptvLoading ? 'Carregando…' : '🔍 Carregar canais'}
+                      {iptvLoading ? 'Carregando…' : <><Search size={14} /> Carregar canais</>}
                     </button>
 
                   </>
@@ -553,7 +622,7 @@ export default function Library() {
                           {filtered.every(c => iptvSelected.has(c.url)) ? 'Desmarcar todos' : 'Marcar todos'}
                         </button>
                         <button className="btn btn-secondary btn-sm" onClick={() => { setIptvChannels([]); setIptvSelected(new Set()) }}>
-                          ✕ Limpar
+                          <X size={14} /> Limpar
                         </button>
                       </div>
                     </div>
@@ -563,7 +632,7 @@ export default function Library() {
                       {filtered.map((ch, i) => (
                         <label key={i} style={{
                           display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', cursor: 'pointer',
-                          borderBottom: '1px solid var(--border)', background: iptvSelected.has(ch.url) ? 'rgba(45,110,245,.07)' : undefined,
+                          borderBottom: '1px solid var(--border)', background: iptvSelected.has(ch.url) ? 'var(--accent-soft)' : undefined,
                         }}>
                           <input type="checkbox" checked={iptvSelected.has(ch.url)} onChange={() => toggleIptvSelect(ch.url)} />
                           {ch.logo && <img src={ch.logo} style={{ width: 32, height: 20, objectFit: 'contain', background: '#111', borderRadius: 3 }} onError={e => e.target.style.display='none'} />}
@@ -618,8 +687,8 @@ export default function Library() {
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(null)}>
           <div className="modal">
             <div className="modal-header">
-              <span className="modal-title">{TYPE_ICONS[modal.type]} Adicionar {TYPE_LABELS[modal.type]}</span>
-              <button className="btn-icon" onClick={() => setModal(null)}>✕</button>
+              <span className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}><TypeIcon type={modal.type} size={18} /> Adicionar {TYPE_LABELS[modal.type]}</span>
+              <button className="btn-icon" onClick={() => setModal(null)}><X size={18} /></button>
             </div>
             <div className="modal-body">
               <div className="form-group">
@@ -724,7 +793,7 @@ export default function Library() {
                         const rows = [...(form.priceItems || priceRowsDefault)]; rows[i] = { ...rows[i], price: e.target.value }
                         setForm(f => ({ ...f, priceItems: rows }))
                       }} />
-                      <button className="btn btn-secondary btn-sm" onClick={() => setForm(f => ({ ...f, priceItems: (f.priceItems || priceRowsDefault).filter((_, j) => j !== i) }))}>✕</button>
+                      <button className="btn btn-secondary btn-sm" onClick={() => setForm(f => ({ ...f, priceItems: (f.priceItems || priceRowsDefault).filter((_, j) => j !== i) }))}><X size={14} /></button>
                     </div>
                   ))}
                   <button className="btn btn-secondary btn-sm" onClick={() => setForm(f => ({ ...f, priceItems: [...(f.priceItems || priceRowsDefault), { name: '', price: '' }] }))}>+ Item</button>

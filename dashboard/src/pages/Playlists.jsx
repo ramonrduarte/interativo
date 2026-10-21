@@ -1,7 +1,15 @@
 import React, { useEffect, useState } from 'react'
 import { api } from '../api.js'
+import {
+  Image as ImageIcon, Film, Youtube, Globe, Type, Clock, Tag, Radio, FileQuestion, X, Trash2, Pencil, Plus, ListVideo, Inbox,
+} from 'lucide-react'
 
-const TYPE_ICONS = { image: '🖼️', video: '🎬', youtube: '▶️', webpage: '🌐', text: '📝', clock: '🕐', priceboard: '💰' }
+const TYPE_ICONS = { image: ImageIcon, video: Film, youtube: Youtube, webpage: Globe, text: Type, clock: Clock, priceboard: Tag, iptvchannel: Radio }
+const TYPE_NAMES = { image: 'Imagem', video: 'Vídeo', youtube: 'YouTube', webpage: 'Página', text: 'Texto', clock: 'Relógio', priceboard: 'Preços', iptvchannel: 'IPTV' }
+function TypeIcon({ type, size = 12, ...rest }) {
+  const Icon = TYPE_ICONS[type] || FileQuestion
+  return <Icon size={size} style={{ verticalAlign: '-2px' }} {...rest} />
+}
 
 const LAYOUT_GRID = {
   fullscreen: { cols: '1fr',          rows: undefined },
@@ -39,7 +47,7 @@ function SlidePreview({ slide, layouts, media }) {
           }}>
             <span style={{ fontSize: 9, color: '#555', fontWeight: 600, lineHeight: 1 }}>{z.label}</span>
             {m && <span style={{ fontSize: 9, color: '#6b9aff', textAlign: 'center', wordBreak: 'break-word', lineHeight: 1.2 }}>
-              {TYPE_ICONS[m.type]} {m.name}
+              <TypeIcon type={m.type} size={9} /> {m.name}
             </span>}
           </div>
         )
@@ -123,7 +131,7 @@ function SlideEditor({ slide, layouts, media, onSave, onClose }) {
       }}>
         <div className="modal-header">
           <span className="modal-title">Editar Slide</span>
-          <button className="btn-icon" onClick={onClose}>✕</button>
+          <button className="btn-icon" onClick={onClose}><X size={18} /></button>
         </div>
         <div className="modal-body">
 
@@ -144,7 +152,7 @@ function SlideEditor({ slide, layouts, media, onSave, onClose }) {
                 {zones.map((z, i) => (
                   <div key={i} style={{
                     border: '1px solid var(--border)', borderRadius: 8, padding: 12,
-                    background: zoneContent[i] ? '#f0f4ff' : 'var(--bg)',
+                    background: zoneContent[i] ? 'var(--accent-soft)' : 'var(--bg)',
                   }}>
                     <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 6, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{
@@ -161,7 +169,7 @@ function SlideEditor({ slide, layouts, media, onSave, onClose }) {
                     >
                       <option value="">— Nenhum conteúdo —</option>
                       {media.map(m => (
-                        <option key={m.id} value={m.id}>{TYPE_ICONS[m.type]} {m.name}{m.type === 'video' && m.video_duration ? ` (${fmtDuration(m.video_duration)})` : ''}</option>
+                        <option key={m.id} value={m.id}>[{TYPE_NAMES[m.type] || m.type}] {m.name}{m.type === 'video' && m.video_duration ? ` (${fmtDuration(m.video_duration)})` : ''}</option>
                       ))}
                     </select>
                   </div>
@@ -205,11 +213,11 @@ function SlideEditor({ slide, layouts, media, onSave, onClose }) {
 
             {useVideoDuration && videoWithDuration ? (
               <div style={{
-                padding: '10px 14px', background: 'rgba(45,110,245,.08)',
-                border: '1px solid rgba(45,110,245,.25)', borderRadius: 8,
+                padding: '10px 14px', background: 'var(--accent-soft)',
+                border: '1px solid var(--accent-soft-border)', borderRadius: 8,
                 fontSize: 13, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 8,
               }}>
-                <span>🎬</span>
+                <Film size={16} color="var(--accent-text)" />
                 <span>
                   O slide vai durar <strong>{fmtDuration(videoWithDuration.video_duration)}</strong> — a duração completa de <em>{videoWithDuration.name}</em>
                 </span>
@@ -318,7 +326,7 @@ export default function Playlists() {
           <h1 className="page-title">Playlists</h1>
           <p className="page-subtitle">Cada playlist é uma sequência de slides — cada slide tem seu próprio layout e conteúdo</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ Nova Playlist</button>
+        <button className="btn btn-primary" onClick={() => setShowCreate(true)}><Plus size={15} /> Nova playlist</button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 20 }}>
@@ -340,7 +348,7 @@ export default function Playlists() {
                     <div style={{ fontWeight: 600 }}>{p.name}</div>
                     {p.description && <div className="text-sm text-muted">{p.description}</div>}
                   </div>
-                  <button className="btn-icon" style={{ fontSize: 12 }} onClick={e => { e.stopPropagation(); handleDelete(p) }}>🗑</button>
+                  <button className="btn-icon" title="Excluir" onClick={e => { e.stopPropagation(); handleDelete(p) }}><Trash2 size={14} /></button>
                 </div>
               </div>
             </div>
@@ -351,7 +359,7 @@ export default function Playlists() {
         <div>
           {!selected ? (
             <div className="empty-state card">
-              <div className="empty-state-icon">🎞️</div>
+              <div className="empty-state-icon"><ListVideo size={40} strokeWidth={1.5} /></div>
               <p className="empty-state-text">Selecione uma playlist para editar os slides</p>
             </div>
           ) : (
@@ -370,12 +378,12 @@ export default function Playlists() {
                       )
                     })()}
                   </div>
-                  <button className="btn btn-primary btn-sm" onClick={() => setEditingSlide('new')}>+ Novo Slide</button>
+                  <button className="btn btn-primary btn-sm" onClick={() => setEditingSlide('new')}><Plus size={14} /> Novo slide</button>
                 </div>
 
                 {(!selected.slides || selected.slides.length === 0) && (
                   <div className="empty-state" style={{ padding: '30px 0' }}>
-                    <div className="empty-state-icon">📭</div>
+                    <div className="empty-state-icon"><Inbox size={40} strokeWidth={1.5} /></div>
                     <p className="empty-state-text">Nenhum slide ainda. Adicione o primeiro slide.</p>
                   </div>
                 )}
@@ -403,7 +411,7 @@ export default function Playlists() {
                         <div style={{ fontWeight: 600, fontSize: 13 }}>{layout?.name || 'Layout não definido'}</div>
                         <div className="text-sm text-muted" style={{ marginTop: 2 }}>
                           {slide.use_video_duration
-                            ? <span style={{ color: 'var(--accent)' }}>🎬 {fmtDuration(slide.duration)} (vídeo completo)</span>
+                            ? <span style={{ color: 'var(--accent-text)' }}><Film size={12} style={{ verticalAlign: '-2px' }} /> {fmtDuration(slide.duration)} (vídeo completo)</span>
                             : `${slide.duration}s`
                           }
                           {' · '}
@@ -411,7 +419,7 @@ export default function Playlists() {
                         </div>
                         {Object.entries(slide.zone_content_detail || {}).map(([zi, z]) => (
                           <div key={zi} className="text-sm" style={{ color: 'var(--accent)', marginTop: 2 }}>
-                            Zona {Number(zi) + 1}: {TYPE_ICONS[z.type]} {z.name}
+                            Zona {Number(zi) + 1}: <TypeIcon type={z.type} /> {z.name}
                           </div>
                         ))}
                       </div>
@@ -420,8 +428,8 @@ export default function Playlists() {
                       <div style={{ display: 'flex', gap: 4 }}>
                         <button className="btn-icon" onClick={() => handleMoveSlide(slide.id, 'up')} title="Subir">↑</button>
                         <button className="btn-icon" onClick={() => handleMoveSlide(slide.id, 'down')} title="Descer">↓</button>
-                        <button className="btn-icon" onClick={() => setEditingSlide(slide)} title="Editar">✏️</button>
-                        <button className="btn-icon" onClick={() => handleDeleteSlide(slide.id)} title="Remover">🗑</button>
+                        <button className="btn-icon" onClick={() => setEditingSlide(slide)} title="Editar"><Pencil size={14} /></button>
+                        <button className="btn-icon" onClick={() => handleDeleteSlide(slide.id)} title="Remover"><Trash2 size={14} /></button>
                       </div>
                     </div>
                   )
@@ -438,7 +446,7 @@ export default function Playlists() {
           <div className="modal">
             <div className="modal-header">
               <span className="modal-title">Nova Playlist</span>
-              <button className="btn-icon" onClick={() => setShowCreate(false)}>✕</button>
+              <button className="btn-icon" onClick={() => setShowCreate(false)}><X size={18} /></button>
             </div>
             <div className="modal-body">
               <div className="form-group">

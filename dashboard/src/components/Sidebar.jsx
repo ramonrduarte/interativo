@@ -1,90 +1,110 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
+import {
+  Radio, Monitor, Layers, ListVideo, CalendarClock, Images, Newspaper, Settings,
+  Building2, LogOut, Moon, Sun, Tv, ArrowLeft,
+} from 'lucide-react'
+import { useTheme } from '../theme.js'
 
-const companyLinks = [
-  { to: '/control',         icon: '🎛️',  label: 'Controle ao Vivo' },
-  { to: '/screens',         icon: '📺',  label: 'Telas' },
-  { to: '/playlist-groups', icon: '📋',  label: 'Grupos de Playlists' },
-  { to: '/playlists',       icon: '🎞️',  label: 'Playlists' },
-  { to: '/schedules',       icon: '📅',  label: 'Agendamentos' },
-  { to: '/library',         icon: '🖼️',  label: 'Biblioteca' },
-  { to: '/tickers',         icon: '📰',  label: 'Tickers' },
-  { to: '/settings',        icon: '⚙️',  label: 'Configurações' },
+const companySections = [
+  { title: 'Operação', links: [
+    { to: '/control',         icon: Radio,         label: 'Controle ao Vivo' },
+    { to: '/screens',         icon: Monitor,       label: 'Telas' },
+    { to: '/schedules',       icon: CalendarClock, label: 'Agendamentos' },
+  ] },
+  { title: 'Conteúdo', links: [
+    { to: '/playlists',       icon: ListVideo,     label: 'Playlists' },
+    { to: '/playlist-groups', icon: Layers,        label: 'Grupos de Playlists' },
+    { to: '/library',         icon: Images,        label: 'Biblioteca' },
+    { to: '/tickers',         icon: Newspaper,     label: 'Tickers' },
+  ] },
+  { title: 'Sistema', links: [
+    { to: '/settings',        icon: Settings,      label: 'Configurações' },
+  ] },
 ]
 
-const superadminLinks = [
-  { to: '/companies', icon: '🏢', label: 'Empresas' },
-  { to: '/settings',  icon: '⚙️', label: 'Configurações' },
+const superadminSections = [
+  { title: 'Administração', links: [
+    { to: '/companies', icon: Building2, label: 'Empresas' },
+    { to: '/settings',  icon: Settings,  label: 'Configurações' },
+  ] },
 ]
+
+function initials(name = '') {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  return ((parts[0]?.[0] || '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase() || '?'
+}
 
 export default function Sidebar({ user, onLogout, onExitImpersonation }) {
+  const [theme, toggleTheme] = useTheme()
   const isImpersonating = !!user?.impersonating_company
   const isSuperadminHome = user?.role === 'superadmin' && !isImpersonating
 
   // Superadmin sem impersonation: só vê Empresas + Configurações
   // Qualquer outro caso (admin normal ou superadmin dentro de uma empresa): vê tudo
-  const links = isSuperadminHome ? superadminLinks : companyLinks
+  const sections = isSuperadminHome ? superadminSections : companySections
 
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
-        📺 <span>Interativa</span>
+        <div className="sidebar-logo-mark"><Tv size={17} strokeWidth={2.2} /></div>
+        <div>
+          Interativa
+          <small>Sinalização digital</small>
+        </div>
       </div>
 
-      {/* Impersonation banner */}
       {isImpersonating && (
-        <div style={{
-          margin: '0 12px 8px',
-          background: '#fefce8',
-          border: '1px solid #fde047',
-          borderRadius: 8,
-          padding: '8px 12px',
-          fontSize: 12,
-        }}>
-          <div style={{ fontWeight: 600, color: '#713f12', marginBottom: 4 }}>
-            Visualizando como:
-          </div>
-          <div style={{ color: '#854d0e', marginBottom: 8 }}>{user.impersonating_name}</div>
-          <button
-            className="btn btn-secondary"
-            style={{ width: '100%', fontSize: 11 }}
-            onClick={onExitImpersonation}
-          >
-            ← Voltar ao painel admin
+        <div className="impersonation-box">
+          <div style={{ fontWeight: 650, marginBottom: 2 }}>Visualizando como</div>
+          <div style={{ marginBottom: 8 }}>{user.impersonating_name}</div>
+          <button className="btn btn-secondary btn-sm" style={{ width: '100%' }} onClick={onExitImpersonation}>
+            <ArrowLeft size={14} /> Voltar ao painel admin
           </button>
         </div>
       )}
 
       <nav className="sidebar-nav">
-        {links.map(l => (
-          <NavLink
-            key={l.to}
-            to={l.to}
-            className={({ isActive }) => 'sidebar-link' + (isActive ? ' active' : '')}
-          >
-            <span>{l.icon}</span>
-            {l.label}
-          </NavLink>
+        {sections.map(s => (
+          <React.Fragment key={s.title}>
+            <div className="sidebar-section">{s.title}</div>
+            {s.links.map(({ to, icon: Icon, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) => 'sidebar-link' + (isActive ? ' active' : '')}
+              >
+                <Icon size={17} strokeWidth={1.9} />
+                {label}
+              </NavLink>
+            ))}
+          </React.Fragment>
         ))}
       </nav>
-      <div className="sidebar-footer" style={{ padding: '12px 16px' }}>
+
+      <div className="sidebar-footer">
         {user && (
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {user.name}
-            </div>
-            <div style={{ fontSize: 11, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {user.email}
+          <div className="sidebar-user">
+            <div className="sidebar-avatar">{initials(user.name)}</div>
+            <div style={{ minWidth: 0 }}>
+              <div className="sidebar-user-name">{user.name}</div>
+              <div className="sidebar-user-email">{user.email}</div>
             </div>
           </div>
         )}
-        <button
-          className="btn btn-secondary"
-          style={{ width: '100%', fontSize: 12 }}
-          onClick={onLogout}
-        >
-          Sair
-        </button>
+        <div className="sidebar-actions">
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Mudar para o tema claro' : 'Mudar para o tema escuro'}
+          >
+            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+            {theme === 'dark' ? 'Claro' : 'Escuro'}
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={onLogout}>
+            <LogOut size={14} /> Sair
+          </button>
+        </div>
       </div>
     </aside>
   )

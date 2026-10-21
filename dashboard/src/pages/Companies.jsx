@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { api } from '../api.js'
+import { Building2, Plus } from 'lucide-react'
 
 export default function Companies({ onImpersonate }) {
   const [companies, setCompanies]   = useState([])
@@ -58,7 +59,7 @@ export default function Companies({ onImpersonate }) {
           <h1 className="page-title">Empresas</h1>
           <p className="page-subtitle">Gerencie os clientes e suas contas de acesso</p>
         </div>
-        <button className="btn btn-primary" onClick={openModal}>+ Nova Empresa</button>
+        <button className="btn btn-primary" onClick={openModal}><Plus size={15} /> Nova empresa</button>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -85,8 +86,7 @@ export default function Companies({ onImpersonate }) {
                 Acessar
               </button>
               <button
-                className="btn btn-secondary btn-sm"
-                style={{ color: '#e53e3e' }}
+                className="btn btn-secondary btn-sm text-danger"
                 onClick={() => handleDelete(c)}
               >
                 Excluir
@@ -95,7 +95,7 @@ export default function Companies({ onImpersonate }) {
 
             {/* Usuários expandidos */}
             {expanded === c.id && (
-              <div style={{ borderTop: '1px solid #e2e8f0', padding: '12px 20px', background: '#f8f9fa' }}>
+              <div style={{ borderTop: '1px solid var(--border)', padding: '12px 20px', background: 'var(--surface-2)' }}>
                 {c.users.length === 0 ? (
                   <p className="text-sm text-muted">Nenhum usuário nessa empresa.</p>
                 ) : (
@@ -120,7 +120,7 @@ export default function Companies({ onImpersonate }) {
 
         {companies.length === 0 && (
           <div className="empty-state">
-            <div className="empty-state-icon">🏢</div>
+            <div className="empty-state-icon"><Building2 size={40} strokeWidth={1.5} /></div>
             <p className="empty-state-text">Nenhuma empresa cadastrada.</p>
           </div>
         )}
@@ -169,10 +169,7 @@ export default function Companies({ onImpersonate }) {
               </div>
 
               {error && (
-                <div style={{
-                  padding: '10px 14px', borderRadius: 6, fontSize: 14,
-                  background: '#fff5f5', border: '1px solid #feb2b2', color: '#c53030',
-                }}>
+                <div className="alert alert-error">
                   {error}
                 </div>
               )}

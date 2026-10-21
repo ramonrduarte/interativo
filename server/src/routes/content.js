@@ -3,7 +3,7 @@ const multer  = require('multer')
 const path    = require('path')
 const fs      = require('fs')
 const { db }  = require('../db')
-const { queueConversion, getStatus: conversionStatus } = require('../videoConvert')
+const { queueConversion, getStatus: conversionStatus, thumbFor } = require('../videoConvert')
 
 const uploadsDir = path.join(__dirname, '../../../uploads')
 
@@ -89,6 +89,8 @@ module.exports = function contentRoutes(_io) {
       if (!item) return res.status(404).json({ error: 'Não encontrado' })
       if (item.filename) {
         try { fs.unlinkSync(path.join(uploadsDir, item.filename)) } catch (_) {}
+        // miniatura do vídeo (nome.jpg)
+        if (item.type === 'video') try { fs.unlinkSync(path.join(uploadsDir, thumbFor(item.filename))) } catch (_) {}
       }
       await db.media.remove(req.params.id)
       res.json({ ok: true })

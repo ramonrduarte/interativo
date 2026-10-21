@@ -17,9 +17,9 @@ class ErrorBoundary extends React.Component {
   static getDerivedStateFromError(error) { return { error } }
   render() {
     if (this.state.error) return (
-      <div style={{ padding: 40, color: '#e53e3e' }}>
+      <div style={{ padding: 40, color: 'var(--danger-text)' }}>
         <h2>Erro na página</h2>
-        <pre style={{ marginTop: 12, fontSize: 12, background: '#fff5f5', padding: 12, borderRadius: 6 }}>
+        <pre className="alert alert-error" style={{ marginTop: 12, fontSize: 12, whiteSpace: 'pre-wrap' }}>
           {this.state.error.message}
         </pre>
         <button className="btn btn-secondary" style={{ marginTop: 16 }} onClick={() => this.setState({ error: null })}>

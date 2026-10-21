@@ -55,6 +55,25 @@ async function probe(file) {
   return v ? { ...v, duration: Number(json.format?.duration) || 0 } : null
 }
 
+/** Caminho relativo da miniatura de um vídeo: videos/x.mp4 → videos/x.jpg */
+function thumbFor(filename) {
+  return filename.replace(/\.[^./]+$/, '') + '.jpg'
+}
+
+/** Gera a miniatura (quadro em ~1 s, 480 px de largura) se ainda não existir. */
+async function ensureThumb(filename) {
+  const thumb = path.join(uploadsDir, thumbFor(filename))
+  if (fs.existsSync(thumb)) return
+  const src = path.join(uploadsDir, filename)
+  for (const at of ['1', '0']) {   // vídeos com menos de 1 s: pega o primeiro quadro
+    try {
+      await run('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', '-ss', at, '-i', src,
+        '-frames:v', '1', '-vf', 'scale=480:-2', '-q:v', '4', thumb])
+      if (fs.existsSync(thumb)) return
+    } catch {}
+  }
+}
+
 function needsConversion(v) {
   if (!v) return false
   return v.codec_name !== 'h264'
@@ -98,6 +117,8 @@ async function convertMedia(mediaId) {
   })
   // Original só é apagado depois que o banco já aponta para o arquivo novo
   try { fs.unlinkSync(src) } catch {}
+  try { fs.unlinkSync(path.join(uploadsDir, thumbFor(media.filename))) } catch {}
+  await ensureThumb(relDst)
   console.log(`[video] "${media.name}" convertido em ${Math.round((Date.now() - started) / 1000)}s`)
 
   await refreshScreens(media.company_id)
@@ -142,7 +163,9 @@ async function queueConversion(mediaId) {
   // Só entra na fila (e aparece no painel) o que realmente precisa ser convertido
   try {
     const src = path.join(uploadsDir, m.filename)
-    if (!fs.existsSync(src) || !needsConversion(await probe(src))) return
+    if (!fs.existsSync(src)) return
+    // Miniatura para a Biblioteca (vídeos que vão ser convertidos ganham a deles depois)
+    if (!needsConversion(await probe(src))) { await ensureThumb(m.filename); return }
   } catch (e) {
     console.warn(`[video] Não foi possível analisar "${m.name}":`, e.message)
     return
@@ -184,4 +207,4 @@ function startVideoMaintenance() {
   }, 15_000)
 }
 
-module.exports = { queueConversion, startVideoMaintenance, needsConversion, getStatus }
+module.exports = { queueConversion, startVideoMaintenance, needsConversion, getStatus, thumbFor }
