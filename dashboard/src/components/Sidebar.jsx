@@ -88,7 +88,7 @@ export default function Sidebar({ user, onLogout, onExitImpersonation }) {
             <div className="sidebar-avatar">{initials(user.name)}</div>
             <div style={{ minWidth: 0 }}>
               <div className="sidebar-user-name">{user.name}</div>
-              <div className="sidebar-user-email">{user.email}</div>
+              <div className="sidebar-user-email">{user.username ? `@${user.username}` : user.email}</div>
             </div>
           </div>
         )}

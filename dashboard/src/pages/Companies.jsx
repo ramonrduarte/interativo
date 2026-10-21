@@ -6,7 +6,7 @@ export default function Companies({ onImpersonate }) {
   const [companies, setCompanies]   = useState([])
   const [modal, setModal]           = useState(false)
   const [expanded, setExpanded]     = useState(null) // company id
-  const [form, setForm]             = useState({ company_name: '', admin_name: '', admin_email: '', admin_password: '' })
+  const [form, setForm]             = useState({ company_name: '', admin_name: '', admin_username: '', admin_email: '', admin_password: '' })
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState('')
 
@@ -17,7 +17,7 @@ export default function Companies({ onImpersonate }) {
   useEffect(() => { load() }, [])
 
   function openModal() {
-    setForm({ company_name: '', admin_name: '', admin_email: '', admin_password: '' })
+    setForm({ company_name: '', admin_name: '', admin_username: '', admin_email: '', admin_password: '' })
     setError('')
     setModal(true)
   }
@@ -104,7 +104,10 @@ export default function Companies({ onImpersonate }) {
                       <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <div style={{ flex: 1 }}>
                           <span style={{ fontWeight: 500, fontSize: 14 }}>{u.name}</span>
-                          <span className="text-muted text-sm" style={{ marginLeft: 8 }}>{u.email}</span>
+                          <span className="text-muted text-sm" style={{ marginLeft: 8 }}>
+                            {u.username && <span style={{ fontFamily: 'var(--mono)' }}>@{u.username}</span>}
+                            {u.username && u.email && ' · '}{u.email}
+                          </span>
                         </div>
                         <span className={`badge ${u.role === 'superadmin' ? 'badge-blue' : 'badge-gray'}`}>
                           {u.role}
@@ -155,10 +158,16 @@ export default function Companies({ onImpersonate }) {
                     onChange={e => setForm(f => ({ ...f, admin_name: e.target.value }))} />
                 </div>
                 <div>
-                  <label className="text-sm" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Email</label>
-                  <input className="input" type="email" value={form.admin_email} required style={{ width: '100%' }}
-                    onChange={e => setForm(f => ({ ...f, admin_email: e.target.value }))} />
+                  <label className="text-sm" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Usuário (para entrar)</label>
+                  <input className="input" value={form.admin_username} required style={{ width: '100%' }} placeholder="ex.: mercadoabc"
+                    onChange={e => setForm(f => ({ ...f, admin_username: e.target.value.toLowerCase().replace(/\s/g, '') }))} />
                 </div>
+              </div>
+
+              <div>
+                <label className="text-sm" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>E-mail <span className="text-muted">(opcional)</span></label>
+                <input className="input" type="email" value={form.admin_email} style={{ width: '100%' }}
+                  onChange={e => setForm(f => ({ ...f, admin_email: e.target.value }))} />
               </div>
 
               <div>

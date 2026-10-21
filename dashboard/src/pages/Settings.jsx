@@ -56,7 +56,68 @@ function AppReleaseCard() {
   )
 }
 
-export default function Settings({ user }) {
+// Meu perfil: nome de exibição, usuário de login e e-mail (opcional)
+function ProfileCard({ user, onProfileUpdated }) {
+  const [form, setForm]       = useState({ name: user?.name || '', username: user?.username || '', email: user?.email || '' })
+  const [msg, setMsg]         = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  // Dados atuais do banco (o login guardado no navegador pode ser de antes da criação do "usuário")
+  useEffect(() => {
+    api.me().then(u => setForm({ name: u.name || '', username: u.username || '', email: u.email || '' })).catch(() => {})
+  }, [])
+
+  async function handleSave(e) {
+    e.preventDefault()
+    setLoading(true)
+    setMsg(null)
+    try {
+      const { token, user: u } = await api.updateMe(form)
+      onProfileUpdated?.(token)
+      setForm({ name: u.name || '', username: u.username || '', email: u.email || '' })
+      setMsg({ type: 'success', text: `Perfil salvo! Para entrar, use o usuário “${u.username}”${u.email ? ' ou o e-mail' : ''}.` })
+    } catch (err) {
+      setMsg({ type: 'error', text: err.message })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const label = { display: 'block', marginBottom: 4, fontWeight: 500 }
+  return (
+    <div className="card" style={{ padding: 24 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Meu perfil</h2>
+      <p className="text-sm text-muted" style={{ marginBottom: 20 }}>
+        Você entra no painel com o <strong>usuário</strong> (ou o e-mail, se cadastrado) e a senha.
+      </p>
+      <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div>
+            <label className="text-sm" style={label}>Nome</label>
+            <input className="input" value={form.name} required
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          </div>
+          <div>
+            <label className="text-sm" style={label}>Usuário (para entrar)</label>
+            <input className="input" value={form.username} required placeholder="ex.: ramon"
+              onChange={e => setForm(f => ({ ...f, username: e.target.value.toLowerCase().replace(/\s/g, '') }))} />
+          </div>
+        </div>
+        <div>
+          <label className="text-sm" style={label}>E-mail <span className="text-muted">(opcional)</span></label>
+          <input className="input" type="email" value={form.email} placeholder="seu@email.com"
+            onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+        </div>
+        {msg && <div className={`alert ${msg.type === 'success' ? 'alert-success' : 'alert-error'}`}>{msg.text}</div>}
+        <button className="btn btn-primary" type="submit" disabled={loading} style={{ alignSelf: 'flex-start' }}>
+          {loading ? 'Salvando...' : 'Salvar perfil'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+export default function Settings({ user, onProfileUpdated }) {
   // --- Trocar senha ---
   const [pwd, setPwd] = useState({ current: '', next: '', confirm: '' })
   const [pwdMsg, setPwdMsg] = useState(null) // { type: 'success'|'error', text }
@@ -81,7 +142,7 @@ export default function Settings({ user }) {
 
   // --- Gerenciar usuários ---
   const [users, setUsers] = useState([])
-  const [newUser, setNewUser] = useState({ name: '', email: '', password: '' })
+  const [newUser, setNewUser] = useState({ name: '', username: '', email: '', password: '' })
   const [userMsg, setUserMsg] = useState(null)
   const [userLoading, setUserLoading] = useState(false)
 
@@ -98,7 +159,7 @@ export default function Settings({ user }) {
     try {
       await api.createUser(newUser)
       setUserMsg({ type: 'success', text: `Usuário "${newUser.name}" criado com sucesso!` })
-      setNewUser({ name: '', email: '', password: '' })
+      setNewUser({ name: '', username: '', email: '', password: '' })
       loadUsers()
     } catch (e) {
       setUserMsg({ type: 'error', text: e.message })
@@ -126,11 +187,13 @@ export default function Settings({ user }) {
 
       <div style={{ display: 'grid', gap: 24, maxWidth: 640 }}>
 
+        <ProfileCard user={user} onProfileUpdated={onProfileUpdated} />
+
         {/* Trocar senha */}
         <div className="card" style={{ padding: 24 }}>
           <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Alterar senha</h2>
           <p className="text-sm text-muted" style={{ marginBottom: 20 }}>
-            Logado como <strong>{user?.email}</strong>
+            Logado como <strong>{user?.username ? `@${user.username}` : user?.email}</strong>
           </p>
           <form onSubmit={handleChangePwd} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
@@ -174,7 +237,11 @@ export default function Settings({ user }) {
               }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 500, fontSize: 14 }}>{u.name}</div>
-                  <div className="text-sm text-muted">{u.email}</div>
+                  <div className="text-sm text-muted">
+                    {u.username && <span style={{ fontFamily: 'var(--mono)' }}>@{u.username}</span>}
+                    {u.username && u.email && ' · '}
+                    {u.email}
+                  </div>
                 </div>
                 <span className="badge badge-blue">{u.role}</span>
                 {u.id !== user?.id && (
@@ -202,10 +269,15 @@ export default function Settings({ user }) {
                   onChange={e => setNewUser(p => ({ ...p, name: e.target.value }))} style={{ width: '100%' }} />
               </div>
               <div>
-                <label className="text-sm" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Email</label>
-                <input className="input" type="email" value={newUser.email} required
-                  onChange={e => setNewUser(p => ({ ...p, email: e.target.value }))} style={{ width: '100%' }} />
+                <label className="text-sm" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Usuário (para entrar)</label>
+                <input className="input" value={newUser.username} required placeholder="ex.: joao"
+                  onChange={e => setNewUser(p => ({ ...p, username: e.target.value.toLowerCase().replace(/\s/g, '') }))} style={{ width: '100%' }} />
               </div>
+            </div>
+            <div>
+              <label className="text-sm" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>E-mail <span className="text-muted">(opcional)</span></label>
+              <input className="input" type="email" value={newUser.email}
+                onChange={e => setNewUser(p => ({ ...p, email: e.target.value }))} style={{ width: '100%' }} />
             </div>
             <div>
               <label className="text-sm" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Senha</label>

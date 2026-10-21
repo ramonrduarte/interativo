@@ -34,6 +34,7 @@ export const api = {
   login: (email, password) => req('POST', '/auth/login', { email, password }),
   me: () => req('GET', '/auth/me'),
   changePassword: (current_password, new_password) => req('PUT', '/auth/me/password', { current_password, new_password }),
+  updateMe: (data) => req('PUT', '/auth/me', data),
 
   // Content/Media
   getContent: () => req('GET', '/content'),

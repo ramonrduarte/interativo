@@ -1,6 +1,7 @@
 const express = require('express')
 const bcrypt  = require('bcryptjs')
 const { db }  = require('../db')
+const { validateUsername, validateEmail } = require('../usernames')
 
 const router = express.Router()
 
@@ -12,23 +13,28 @@ router.get('/', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
-// Cria novo usuário na empresa
+// Cria novo usuário na empresa (usuário + senha obrigatórios; e-mail opcional)
 router.post('/', async (req, res) => {
   try {
-    const { name, email, password, role = 'admin' } = req.body
-    if (!name || !email || !password) return res.status(400).json({ error: 'name, email e password são obrigatórios' })
+    const { name, password } = req.body
+    if (!name || !password) return res.status(400).json({ error: 'Nome, usuário e senha são obrigatórios' })
     if (password.length < 6) return res.status(400).json({ error: 'A senha deve ter no mínimo 6 caracteres' })
+    const u = validateUsername(req.body.username)
+    if (u.error) return res.status(400).json({ error: u.error })
+    const e = validateEmail(req.body.email)
+    if (e.error) return res.status(400).json({ error: e.error })
 
-    const existing = await db.users.findOne(u => u.email === email.toLowerCase().trim())
-    if (existing) return res.status(409).json({ error: 'Já existe um usuário com esse email' })
+    const existing = await db.users.findOne(x => x.username === u.value || (e.value && x.email === e.value))
+    if (existing) return res.status(409).json({ error: existing.username === u.value ? 'Já existe um usuário com esse nome de usuário' : 'Já existe um usuário com esse e-mail' })
 
     const password_hash = await bcrypt.hash(password, 10)
     const user = await db.users.insert({
       company_id: req.user.company_id,
-      name,
-      email: email.toLowerCase().trim(),
+      name: String(name).trim(),
+      username: u.value,
+      email: e.value,
       password_hash,
-      role,
+      role: 'admin',   // superadmin só existe na instalação; não pode ser criado por aqui
     })
     const { password_hash: _, ...safe } = user
     res.json(safe)

@@ -3,6 +3,7 @@ const bcrypt     = require('bcryptjs')
 const jwt        = require('jsonwebtoken')
 const { db }     = require('../db')
 const requireSuperadmin = require('../middleware/superadmin')
+const { validateUsername, validateEmail } = require('../usernames')
 
 const SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-prod'
 
@@ -38,22 +39,26 @@ router.get('/companies', async (_req, res) => {
 // Cria empresa + usuário administrador inicial
 router.post('/companies', async (req, res) => {
   try {
-    const { company_name, admin_name, admin_email, admin_password } = req.body
-    if (!company_name)   return res.status(400).json({ error: 'company_name é obrigatório' })
-    if (!admin_name)     return res.status(400).json({ error: 'admin_name é obrigatório' })
-    if (!admin_email)    return res.status(400).json({ error: 'admin_email é obrigatório' })
-    if (!admin_password) return res.status(400).json({ error: 'admin_password é obrigatório' })
+    const { company_name, admin_name, admin_password } = req.body
+    if (!company_name)   return res.status(400).json({ error: 'Informe o nome da empresa' })
+    if (!admin_name)     return res.status(400).json({ error: 'Informe o nome do administrador' })
+    if (!admin_password) return res.status(400).json({ error: 'Informe a senha do administrador' })
     if (admin_password.length < 6) return res.status(400).json({ error: 'A senha deve ter no mínimo 6 caracteres' })
+    const u = validateUsername(req.body.admin_username)
+    if (u.error) return res.status(400).json({ error: u.error })
+    const e = validateEmail(req.body.admin_email)
+    if (e.error) return res.status(400).json({ error: e.error })
 
-    const existing = await db.users.findOne(u => u.email === admin_email.toLowerCase().trim())
-    if (existing) return res.status(409).json({ error: 'Já existe um usuário com esse email' })
+    const existing = await db.users.findOne(x => x.username === u.value || (e.value && x.email === e.value))
+    if (existing) return res.status(409).json({ error: existing.username === u.value ? 'Já existe um usuário com esse nome de usuário' : 'Já existe um usuário com esse e-mail' })
 
     const company      = await db.companies.insert({ name: company_name, pairing_token: makeToken() })
     const password_hash = await bcrypt.hash(admin_password, 10)
     const user = await db.users.insert({
       company_id:    company.id,
       name:          admin_name,
-      email:         admin_email.toLowerCase().trim(),
+      username:      u.value,
+      email:         e.value,
       password_hash,
       role:          'admin',
     })
@@ -99,6 +104,7 @@ router.post('/impersonate/:companyId', async (req, res) => {
         id:                    req.user.id,
         company_id:            company.id,
         email:                 req.user.email,
+        username:              req.user.username,
         name:                  req.user.name,
         role:                  req.user.role,       // still superadmin
         impersonating_company: company.id,

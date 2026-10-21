@@ -39,7 +39,8 @@ export default function App() {
       return {
         id:                    payload.id,
         name:                  payload.name,
-        email:                 payload.email,
+        email:                 payload.email || null,
+        username:              payload.username || null,
         role:                  payload.role,
         company_id:            payload.company_id,
         impersonating_company: payload.impersonating_company || null,
@@ -116,7 +117,10 @@ export default function App() {
             <Route path="/library" element={<Library />} />
             <Route path="/tickers" element={<Tickers />} />
             <Route path="/schedules" element={<Schedules />} />
-            <Route path="/settings" element={<Settings user={user} />} />
+            <Route path="/settings" element={<Settings user={user} onProfileUpdated={token => {
+              localStorage.setItem('auth_token', token)
+              setUser(decodeUser(token))
+            }} />} />
             <Route path="/companies" element={<Companies onImpersonate={handleImpersonate} />} />
             <Route path="/playlist-groups" element={<PlaylistGroups />} />
           </Routes>

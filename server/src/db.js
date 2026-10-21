@@ -198,8 +198,9 @@ async function initDb() {
     const hash = await bcrypt.hash('admin123', 10)
     await db.users.insert({
       company_id:    company.id,
-      name:          'Admin',
-      email:         'admin@interativa.local',
+      name:          'Administrador',
+      username:      'admin',
+      email:         null,      // opcional — pode ser cadastrado depois em Configurações → Meu perfil
       password_hash: hash,
       role:          'superadmin',
     })
@@ -211,7 +212,7 @@ async function initDb() {
     }
 
     console.log('[db] Empresa e usuário padrão criados')
-    console.log('[db]   Usuário: Admin  (ou admin@interativa.local)')
+    console.log('[db]   Usuário: admin')
     console.log('[db]   Senha: admin123  ← TROQUE após o primeiro login')
   }
 
