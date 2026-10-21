@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import Sidebar from './components/Sidebar.jsx'
 import Library from './pages/Library.jsx'
 import Playlists from './pages/Playlists.jsx'
@@ -56,31 +56,45 @@ export default function App() {
     return u
   })
 
-  // Real (superadmin) token stored separately during impersonation
-  const [realToken, setRealToken] = useState(null)
+  // Token real do administrador principal, guardado enquanto ele acessa uma empresa.
+  // Fica no localStorage (e não só na memória) para o "Voltar ao painel admin"
+  // continuar funcionando depois de recarregar a página.
+  const ADMIN_TOKEN_KEY = 'auth_token_admin'
+  const navigate = useNavigate()
 
   function handleLogin(userData) {
+    localStorage.removeItem(ADMIN_TOKEN_KEY)
     setUser(userData)
   }
 
   function handleLogout() {
     localStorage.removeItem('auth_token')
-    setRealToken(null)
+    localStorage.removeItem(ADMIN_TOKEN_KEY)
     setUser(null)
   }
 
   function handleImpersonate(token) {
-    // Save real token before switching
-    setRealToken(localStorage.getItem('auth_token'))
+    // Guarda o token real antes de trocar (sem sobrescrever se já estiver acessando outra empresa)
+    if (!localStorage.getItem(ADMIN_TOKEN_KEY)) {
+      localStorage.setItem(ADMIN_TOKEN_KEY, localStorage.getItem('auth_token'))
+    }
     localStorage.setItem('auth_token', token)
     setUser(decodeUser(token))
+    navigate('/control')
   }
 
   function handleExitImpersonation() {
-    if (!realToken) return
+    const realToken = localStorage.getItem(ADMIN_TOKEN_KEY)
+    const admin = realToken && decodeUser(realToken)
+    localStorage.removeItem(ADMIN_TOKEN_KEY)
+    if (!admin) {
+      // Sessão do administrador expirou: pede login de novo
+      handleLogout()
+      return
+    }
     localStorage.setItem('auth_token', realToken)
-    setUser(decodeUser(realToken))
-    setRealToken(null)
+    setUser(admin)
+    navigate('/companies')
   }
 
   if (!user) {
