@@ -1,7 +1,7 @@
 const express = require('express')
 const { v4: uuidv4 } = require('uuid')
 const { db } = require('../db')
-const { pushToScreen, registry, devicesFor } = require('../socket')
+const { pushToScreen, registry, devicesFor, kickScreen } = require('../socket')
 
 // Valida o horário de funcionamento vindo do dashboard.
 // Retorna undefined (não altera), null (sem horário) ou { enabled, rules }.
@@ -107,8 +107,11 @@ module.exports = function screenRoutes(_io) {
     try {
       const existing = await db.screens.findByIdAndCompany(req.params.id, req.user.company_id)
       if (!existing) return res.status(404).json({ error: 'Não encontrado' })
+      // Agendamentos da tela são excluídos junto (antes ficavam órfãos no banco)
+      await db.schedules.removeWhere(s => s.screen_id == existing.id)
       await db.screens.remove(req.params.id)
-      res.json({ ok: true })
+      const disconnected = kickScreen(existing.token)
+      res.json({ ok: true, disconnected })
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 

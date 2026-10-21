@@ -7,6 +7,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.KeyEvent
+import android.view.MotionEvent
+import kotlin.math.abs
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
@@ -330,6 +332,10 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         }
     }
 
+    override fun onRemoved() {
+        unpair("Esta TV foi removida do painel. Conecte novamente para voltar a exibir conteúdo.")
+    }
+
     private fun unpair(message: String?) {
         socket?.disconnect()
         socket = null
@@ -414,6 +420,28 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
             return true
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    // Telas de toque (celular, tablet, TV touch): segurar o dedo 2 s em qualquer lugar abre o menu
+    private var touchDownX = 0f
+    private var touchDownY = 0f
+    private val touchMenu = Runnable { if (mode == Mode.SIGNAGE) showMenu() }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (mode == Mode.SIGNAGE) {
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    touchDownX = ev.x; touchDownY = ev.y
+                    main.postDelayed(touchMenu, 2_000)
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val slop = resources.displayMetrics.density * 24
+                    if (abs(ev.x - touchDownX) > slop || abs(ev.y - touchDownY) > slop) main.removeCallbacks(touchMenu)
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_POINTER_DOWN -> main.removeCallbacks(touchMenu)
+            }
+        }
+        return super.dispatchTouchEvent(ev)
     }
 
     override fun onKeyLongPress(keyCode: Int, event: KeyEvent): Boolean {

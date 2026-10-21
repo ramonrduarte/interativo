@@ -28,6 +28,8 @@ class TvSocket(
         fun onConfig(json: JSONObject)
         /** O servidor encerrou a conexão (token não existe mais no painel). */
         fun onRejected()
+        /** A tela foi excluída no painel: volta para o pareamento na hora. */
+        fun onRemoved() = onRejected()
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -84,6 +86,7 @@ class TvSocket(
             main.post { if (reason == "io server disconnect") listener.onRejected() else listener.onDisconnected() }
         }
         s.on(Socket.EVENT_CONNECT_ERROR) { main.post { listener.onDisconnected() } }
+        s.on("screen:removed") { main.post { disconnect(); listener.onRemoved() } }
         s.on("config:update") { args ->
             (args.firstOrNull() as? JSONObject)?.let { json -> main.post { listener.onConfig(json) } }
         }

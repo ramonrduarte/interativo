@@ -273,4 +273,15 @@ async function pushToScreen(screenId) {
   return true
 }
 
-module.exports = { initSocket, pushToScreen, completePairing, getPairingEntry, registry, pairingRegistry, devicesFor }
+// Tela excluída no painel: avisa as TVs conectadas (voltam para o pareamento) e derruba a conexão.
+// Sem isso a TV ficaria exibindo o conteúdo antigo, porque o token só é conferido ao conectar.
+function kickScreen(token) {
+  if (!io || !token) return 0
+  const room = io.sockets.adapter.rooms.get(token)
+  const count = room ? room.size : 0
+  io.to(token).emit('screen:removed')
+  setTimeout(() => io.in(token).disconnectSockets(true), 1000)
+  return count
+}
+
+module.exports = { initSocket, pushToScreen, completePairing, getPairingEntry, registry, pairingRegistry, devicesFor, kickScreen }

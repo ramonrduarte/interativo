@@ -20,6 +20,17 @@ export function connectSocket() {
 
   socket.on('config:update', config => setConfig(config))
 
+  // Tela excluída no painel: esquece o token e volta para o pareamento
+  socket.on('screen:removed', () => {
+    try {
+      localStorage.removeItem('interativa_token')
+      localStorage.removeItem('interativa_config')
+    } catch {}
+    const url = new URL(window.location.href)
+    url.searchParams.delete('token')
+    window.location.replace(url.toString())
+  })
+
   setInterval(() => {
     if (socket?.connected) socket.emit('tv:heartbeat', { token })
   }, 30000)

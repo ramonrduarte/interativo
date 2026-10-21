@@ -472,7 +472,9 @@ export default function Schedules() {
               {schedules.map(s => (
                 <tr key={s.id}>
                   <td>{s.name || <span className="text-muted">—</span>}</td>
-                  <td><span className="badge badge-blue">{s.screen_name || '—'}</span></td>
+                  <td>{s.screen_name
+                    ? <span className="badge badge-blue">{s.screen_name}</span>
+                    : <span className="badge badge-warning" title="A tela deste agendamento foi excluída. Edite e escolha outra tela.">Tela excluída — edite</span>}</td>
                   <td>{s.playlist_name || '—'}</td>
                   <td style={{ fontSize: 11 }}>
                     {(s.date_from || s.date_to) && (

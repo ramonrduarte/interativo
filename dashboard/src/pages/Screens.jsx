@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { api } from '../api.js'
 import socket from '../socket.js'
-import { Link2, Copy, Check, Tv, Globe, Moon, Radio, Plus, X, Clock, Smartphone, Monitor, Layers, Trash2 } from 'lucide-react'
+import { Link2, Copy, Check, Tv, Globe, Moon, Radio, Plus, X, Clock, Smartphone, Monitor, Layers, Trash2, AlertTriangle } from 'lucide-react'
 
 const iconInline = { verticalAlign: '-2px' }
 
@@ -322,10 +322,10 @@ export default function Screens() {
     finally { setLoading(false) }
   }
 
-  async function handleDelete(s) {
-    if (!confirm(`Deletar a tela "${s.name}"?`)) return
-    await api.deleteScreen(s.id)
-    load()
+  const [deleting, setDeleting] = useState(null)   // tela aguardando confirmação de exclusão
+
+  function handleDelete(s) {
+    setDeleting(s)
   }
 
   function getContentLabel(s) {
@@ -531,6 +531,91 @@ export default function Screens() {
       {showPair && (
         <PairModal screens={screens} onClose={() => setShowPair(false)} />
       )}
+
+      {deleting && (
+        <DeleteScreenModal
+          screen={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => { setDeleting(null); load() }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Exclusão de tela: mostra o impacto e exige digitar o nome ─────────────
+function DeleteScreenModal({ screen, onClose, onDeleted }) {
+  const [typed, setTyped]         = useState('')
+  const [schedules, setSchedules] = useState(null)
+  const [busy, setBusy]           = useState(false)
+  const [error, setError]         = useState('')
+  const devices = screen.devices?.length || 0
+
+  useEffect(() => {
+    api.getSchedules(screen.id).then(list => setSchedules(list.length)).catch(() => setSchedules(0))
+  }, [screen.id])
+
+  const matches = typed.trim().toLowerCase() === screen.name.trim().toLowerCase()
+
+  async function confirmDelete() {
+    if (!matches) return
+    setBusy(true)
+    setError('')
+    try {
+      await api.deleteScreen(screen.id)
+      onDeleted()
+    } catch (e) {
+      setError(e.message)
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 460 }}>
+        <div className="modal-header">
+          <span className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--danger-text)' }}>
+            <AlertTriangle size={18} /> Excluir a tela “{screen.name}”?
+          </span>
+          <button className="btn-icon" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="modal-body" style={{ display: 'grid', gap: 14 }}>
+          <div className="alert alert-error" style={{ display: 'grid', gap: 6 }}>
+            <strong>Esta ação não pode ser desfeita.</strong>
+            <span>
+              {devices > 0
+                ? <>Ela está <strong>online em {devices} aparelho{devices > 1 ? 's' : ''}</strong>, que vão parar de exibir o conteúdo e voltar para a tela de pareamento.</>
+                : <>Os aparelhos ligados a ela vão parar de exibir o conteúdo e precisar ser pareados de novo.</>}
+            </span>
+            <span>
+              {schedules === null
+                ? 'Verificando agendamentos…'
+                : schedules > 0
+                  ? <><strong>{schedules} agendamento{schedules > 1 ? 's' : ''}</strong> desta tela também {schedules > 1 ? 'serão excluídos' : 'será excluído'}.</>
+                  : 'Esta tela não tem agendamentos.'}
+            </span>
+            <span>O horário de funcionamento configurado nela também será perdido.</span>
+          </div>
+          <div>
+            <label className="form-label">Para confirmar, digite o nome da tela: <strong>{screen.name}</strong></label>
+            <input
+              className="form-control"
+              autoFocus
+              value={typed}
+              onChange={e => setTyped(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') confirmDelete() }}
+              placeholder={screen.name}
+            />
+          </div>
+          {error && <div className="alert alert-error">{error}</div>}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-danger" onClick={confirmDelete} disabled={!matches || busy}>
+            <Trash2 size={14} /> {busy ? 'Excluindo…' : 'Excluir tela'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
