@@ -52,7 +52,7 @@ object MediaCache {
 
     fun liveFactory(ctx: Context): DataSource.Factory = DefaultDataSource.Factory(ctx, http())
 
-    /** Apaga do disco vídeos que saíram da playlist (ex.: arquivo trocado pela conversão para H.264). */
+    /** Apaga do disco os vídeos que não pertencem mais à programação da tela. */
     @Synchronized
     fun removeUnused(keep: Set<String>) {
         val c = cache ?: return

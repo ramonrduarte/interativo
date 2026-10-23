@@ -4,6 +4,7 @@ const path    = require('path')
 const fs      = require('fs')
 const { db }  = require('../db')
 const { queueConversion, getStatus: conversionStatus, thumbFor } = require('../videoConvert')
+const { pushCompanyScreens } = require('../socket')
 
 const uploadsDir = path.join(__dirname, '../../../uploads')
 
@@ -79,6 +80,7 @@ module.exports = function contentRoutes(_io) {
       const updates = { name, url: url || null, content: content || null }
       if (object_fit) updates.object_fit = object_fit
       const row = await db.media.update(req.params.id, updates)
+      await pushCompanyScreens(req.user.company_id)
       res.json(row)
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
@@ -93,6 +95,7 @@ module.exports = function contentRoutes(_io) {
         if (item.type === 'video') try { fs.unlinkSync(path.join(uploadsDir, thumbFor(item.filename))) } catch (_) {}
       }
       await db.media.remove(req.params.id)
+      await pushCompanyScreens(req.user.company_id)
       res.json({ ok: true })
     } catch (e) { res.status(500).json({ error: e.message }) }
   })

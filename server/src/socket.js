@@ -117,6 +117,53 @@ async function getSlidesForPlaylistId(playlistId) {
 }
 
 // ---------------------------------------------------------------------------
+// Programação completa da tela (app Android 1.8+): conteúdo padrão + agendamentos com os
+// slides de cada um. O app guarda tudo, baixa os vídeos de todas as playlists com antecedência
+// e decide sozinho o que exibir em cada horário — continua seguindo a agenda sem internet.
+// ---------------------------------------------------------------------------
+async function buildProgram(screen) {
+  const cache = new Map()
+  const slidesOf = async id => {
+    if (!cache.has(id)) cache.set(id, await getSlidesForPlaylistId(id))
+    return cache.get(id)
+  }
+
+  const defaultSlides = []
+  if (screen.playlist_group_id) {
+    const items = await db.playlistGroupItems.where(i => i.group_id == screen.playlist_group_id)
+    items.sort((a, b) => a.position - b.position)
+    for (const item of items) defaultSlides.push(...await slidesOf(item.playlist_id))
+  } else if (screen.playlist_id) {
+    defaultSlides.push(...await slidesOf(screen.playlist_id))
+  }
+
+  // Agendamentos ativos que ainda vão (ou podem) acontecer, na mesma ordem usada por getActivePlaylistId
+  const now   = new Date()
+  const today = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-')
+  const rows  = (await db.schedules.where(s => s.screen_id == screen.id))
+    .filter(s => s.active == 1 && s.playlist_id && (!s.date_to || s.date_to >= today))
+  const schedules = []
+  for (const s of rows) {
+    schedules.push({
+      id: s.id, priority: s.priority || 0,
+      days: Array.isArray(s.days) ? s.days : [],
+      start_time: s.start_time, end_time: s.end_time,
+      interval_minutes: s.interval_minutes || null, interval_duration: s.interval_duration || null,
+      date_from: s.date_from || null, date_to: s.date_to || null,
+      slides: await slidesOf(s.playlist_id),
+    })
+  }
+
+  return {
+    // Os horários dos agendamentos valem no fuso do servidor — o app usa o mesmo
+    timezone:  Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+    utcOffset: -now.getTimezoneOffset(),
+    default:   defaultSlides,
+    schedules,
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Build the full config payload sent to a TV
 // ---------------------------------------------------------------------------
 async function buildPayload(screenId) {
@@ -155,6 +202,8 @@ async function buildPayload(screenId) {
     } : null,
     // Horário de funcionamento — lido pelo app Android nativo (a página /tv/ ignora)
     power: screen.power_schedule || null,
+    // Programação completa — app Android 1.8+ (a página /tv/ e apps antigos usam só "slides")
+    program: await buildProgram(screen),
   }
 }
 
@@ -314,6 +363,22 @@ async function pushToScreen(screenId) {
   return true
 }
 
+// Telas que podem exibir a playlist: direto, por grupo ou por agendamento.
+// Recebem a programação atualizada mesmo que a playlist não esteja no ar agora —
+// assim o app já baixa os vídeos novos e apaga os que saíram.
+async function pushScreensUsingPlaylist(playlistId) {
+  const groupIds  = new Set((await db.playlistGroupItems.where(i => i.playlist_id == playlistId)).map(i => i.group_id))
+  const schedIds  = new Set((await db.schedules.where(s => s.playlist_id == playlistId)).map(s => s.screen_id))
+  const screens   = await db.screens.where(s =>
+    s.playlist_id == playlistId || (s.playlist_group_id && groupIds.has(s.playlist_group_id)) || schedIds.has(s.id))
+  for (const s of screens) await pushToScreen(s.id)
+}
+
+async function pushCompanyScreens(companyId) {
+  const screens = await db.screens.where(s => s.company_id == companyId)
+  for (const s of screens) await pushToScreen(s.id)
+}
+
 // Tela excluída no painel: avisa as TVs conectadas (voltam para o pareamento) e derruba a conexão.
 // Sem isso a TV ficaria exibindo o conteúdo antigo, porque o token só é conferido ao conectar.
 function kickScreen(token) {
@@ -325,4 +390,4 @@ function kickScreen(token) {
   return count
 }
 
-module.exports = { initSocket, pushToScreen, completePairing, getPairingEntry, registry, pairingRegistry, devicesFor, kickScreen }
+module.exports = { initSocket, pushToScreen, pushScreensUsingPlaylist, pushCompanyScreens, completePairing, getPairingEntry, registry, pairingRegistry, devicesFor, kickScreen }

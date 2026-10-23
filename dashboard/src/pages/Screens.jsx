@@ -5,7 +5,8 @@ import { Link2, Copy, Check, Tv, Globe, Moon, Radio, Plus, X, Clock, Smartphone,
 
 const iconInline = { verticalAlign: '-2px' }
 
-// Andamento do download do conteúdo no aparelho (enviado pelo app Android)
+// Andamento do download da programação no aparelho (enviado pelo app Android).
+// No app 1.8+ o total conta os vídeos de todas as playlists da tela (padrão + agendamentos).
 function SyncLine({ sync, screenId }) {
   const [retrying, setRetrying] = useState(false)
   if (!sync || !sync.total) return null
@@ -14,7 +15,7 @@ function SyncLine({ sync, screenId }) {
     return (
       <div style={{ marginTop: 4, display: 'grid', gap: 3, maxWidth: 220 }}>
         <span className="badge badge-blue" style={{ justifySelf: 'start' }}>
-          <Download size={10} /> Baixando conteúdo {sync.done}/{sync.total} · {sync.percent}%
+          <Download size={10} /> Baixando programação {sync.done}/{sync.total} vídeos · {sync.percent}%
         </span>
         <div className="progress" style={{ height: 4 }}><div style={{ width: sync.percent + '%' }} /></div>
         {sync.waiting && <span className="text-muted" style={{ fontSize: 11 }}>A TV troca de playlist quando terminar</span>}
@@ -43,7 +44,7 @@ function SyncLine({ sync, screenId }) {
   }
   return (
     <span className="badge badge-success" style={{ marginTop: 4 }}>
-      <Check size={10} /> Conteúdo atualizado · {time}
+      <Check size={10} /> Programação no aparelho · {sync.total} vídeo{sync.total > 1 ? 's' : ''} · {time}
     </span>
   )
 }

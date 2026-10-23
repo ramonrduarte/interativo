@@ -1,6 +1,14 @@
 const express = require('express')
 const { db } = require('../db')
 const { triggerCheck } = require('../scheduler')
+const { pushToScreen } = require('../socket')
+
+// A tela recebe a programação nova na hora (o app Android guarda os agendamentos e baixa os vídeos antes)
+async function pushScreens(...ids) {
+  for (const id of new Set(ids.filter(Boolean).map(Number))) {
+    try { await pushToScreen(id) } catch (e) { console.error('[schedules] erro ao atualizar tela:', e.message) }
+  }
+}
 
 const router = express.Router()
 
@@ -50,6 +58,7 @@ router.post('/', async (req, res) => {
       company_id:        req.user.company_id,
     })
     triggerCheck()
+    await pushScreens(row.screen_id)
     res.json(await enrichSchedule(row))
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
@@ -87,6 +96,7 @@ router.put('/:id', async (req, res) => {
       date_to:           date_to           !== undefined ? (date_to   || null)                : undefined,
     })
     triggerCheck()
+    await pushScreens(existing.screen_id, s.screen_id)
     res.json(await enrichSchedule(s))
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
@@ -97,6 +107,7 @@ router.delete('/:id', async (req, res) => {
     if (!existing) return res.status(404).json({ error: 'Não encontrado' })
     await db.schedules.remove(req.params.id)
     triggerCheck()
+    await pushScreens(existing.screen_id)
     res.json({ ok: true })
   } catch (e) { res.status(500).json({ error: e.message }) }
 })

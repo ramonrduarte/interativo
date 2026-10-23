@@ -1,14 +1,9 @@
 const express = require('express')
 const { db } = require('../db')
-const { pushToScreen } = require('../socket')
+const { pushScreensUsingPlaylist } = require('../socket')
 
 module.exports = function playlistRoutes(_io) {
   const router = express.Router()
-
-  async function pushScreensUsingPlaylist(playlistId) {
-    const screens = await db.screens.where(s => s.playlist_id == playlistId)
-    for (const s of screens) await pushToScreen(s.id)
-  }
 
   async function getPlaylistWithSlides(id, companyId) {
     const playlist = companyId
@@ -77,6 +72,7 @@ module.exports = function playlistRoutes(_io) {
       if (!existing) return res.status(404).json({ error: 'Não encontrado' })
       await db.playlistSlides.removeWhere(s => s.playlist_id == req.params.id)
       await db.playlists.remove(req.params.id)
+      await pushScreensUsingPlaylist(req.params.id)
       res.json({ ok: true })
     } catch (e) { res.status(500).json({ error: e.message }) }
   })

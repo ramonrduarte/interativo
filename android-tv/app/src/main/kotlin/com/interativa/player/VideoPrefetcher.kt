@@ -24,9 +24,11 @@ data class SyncProgress(
 )
 
 /**
- * Baixa em segundo plano todos os vídeos de uma playlist para o cache em disco, um por vez,
- * informando o andamento. Vídeos fora das listas "mantidas" (playlist exibida + playlist nova)
- * são apagados do disco. Se algum download falhar, tenta de novo em 1 minuto (continuando de
+ * Baixa em segundo plano, um por vez, os vídeos de toda a programação da tela (playlist no ar
+ * primeiro, depois a padrão e as dos agendamentos), informando o andamento.
+ * Com a programação completa (servidor novo), apaga do disco os vídeos que não pertencem mais a
+ * nenhuma playlist da tela. Sem ela (servidor antigo), não apaga nada — o cache libera espaço
+ * sozinho (os que não tocam há mais tempo, acima de 1,5 GB). Se algum download falhar, tenta de novo em 1 minuto (continuando de
  * onde parou) — ou na hora, quando a playlist chega de novo (reconexão ou "Enviar para TV").
  */
 object VideoPrefetcher {
@@ -38,12 +40,18 @@ object VideoPrefetcher {
     @Volatile private var generation = 0
     @Volatile private var running = false
     @Volatile private var urls: List<String> = emptyList()
-    @Volatile private var keep: Set<String> = emptySet()
+    @Volatile private var keep: Set<String>? = null   // null = não apagar nada
     @Volatile private var listener: ((SyncProgress) -> Unit)? = null
     @Volatile var last: SyncProgress? = null
         private set
 
-    fun videoUrls(cfg: TvConfig): List<String> = cfg.slides.flatMap { it.zones.values }
+    /** Vídeos da playlist no ar. */
+    fun videoUrls(cfg: TvConfig): List<String> = videosOf(cfg.slides)
+
+    /** Vídeos de toda a programação (os da playlist no ar primeiro). */
+    fun programUrls(cfg: TvConfig): List<String> = videosOf(cfg.allSlides)
+
+    private fun videosOf(slides: List<Slide>): List<String> = slides.flatMap { it.zones.values }
         .filter { it.type == "video" && it.url != null }
         .mapNotNull { it.url }
         .distinct()
@@ -57,13 +65,13 @@ object VideoPrefetcher {
     }
 
     /**
-     * Baixa os vídeos de [cfg]. [alsoKeep] são vídeos que não podem ser apagados do disco
+     * Baixa os vídeos da programação de [cfg]. [alsoKeep] são vídeos que não podem ser apagados
      * (os da playlist ainda em exibição). [onProgress] é chamado na thread principal.
      */
     fun prefetch(ctx: Context, cfg: TvConfig, alsoKeep: Collection<String> = emptyList(), onProgress: ((SyncProgress) -> Unit)? = null) {
         val app = ctx.applicationContext
-        val list = videoUrls(cfg)
-        val newKeep = list.toSet() + alsoKeep
+        val list = programUrls(cfg)
+        val newKeep = if (cfg.program != null) list.toSet() + alsoKeep else null
         if (onProgress != null) listener = onProgress
         if (list == urls && newKeep == keep) {
             // Mesma playlist: se a última rodada falhou, tenta de novo já (sem esperar o próximo minuto)
@@ -93,8 +101,8 @@ object VideoPrefetcher {
         }
     }
 
-    private fun download(app: Context, gen: Int, list: List<String>, keepNow: Set<String>) {
-        MediaCache.removeUnused(keepNow)
+    private fun download(app: Context, gen: Int, list: List<String>, keepNow: Set<String>?) {
+        keepNow?.let { MediaCache.removeUnused(it) }
         val total = list.size
         var done = list.count { MediaCache.isFullyCached(it) }
         var failed = 0

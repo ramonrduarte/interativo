@@ -205,12 +205,12 @@ class SignageView(ctx: Context) : FrameLayout(ctx) {
     }
 
     /**
-     * Baixa para o disco todas as imagens da playlist (exibição offline e sem atraso).
+     * Baixa para o disco todas as imagens da programação (exibição offline e sem atraso).
      * Decodifica em tamanho mínimo: o que interessa aqui é o arquivo no cache de disco.
      */
     private fun prefetchImages(cfg: TvConfig) {
         val loader = context.imageLoader
-        cfg.slides.flatMap { it.zones.values }.filter { it.type == "image" && it.url != null }.distinctBy { it.url }.forEach {
+        cfg.allSlides.flatMap { it.zones.values }.filter { it.type == "image" && it.url != null }.distinctBy { it.url }.forEach {
             loader.enqueue(
                 ImageRequest.Builder(context)
                     .data(it.url)

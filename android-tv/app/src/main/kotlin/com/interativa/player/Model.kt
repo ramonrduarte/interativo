@@ -4,6 +4,7 @@ import android.graphics.Color
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Calendar
+import java.util.SimpleTimeZone
 import java.util.TimeZone
 
 /**
@@ -108,23 +109,126 @@ data class PowerSchedule(val enabled: Boolean, val rules: List<PowerRule>) {
     }
 }
 
+/**
+ * Agendamento de playlist — mesma regra de isScheduleActiveNow() em server/src/scheduleUtils.js:
+ * dias da semana (vazio = todos), período de datas, janela de horário e modo intervalo
+ * (a cada [intervalMinutes] min, exibe por [intervalDuration] min).
+ */
+data class ScheduleRule(
+    val id: String,
+    val priority: Int,
+    val days: Set<Int>,
+    val startMinute: Int,
+    val endMinute: Int,
+    val intervalMinutes: Int?,
+    val intervalDuration: Int?,
+    val dateFrom: String?,   // yyyy-MM-dd
+    val dateTo: String?,
+    val slides: List<Slide>,
+) {
+    fun isActiveAt(cal: Calendar): Boolean {
+        val date = "%04d-%02d-%02d".format(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DAY_OF_MONTH))
+        if (dateFrom != null && date < dateFrom) return false
+        if (dateTo != null && date > dateTo) return false
+        if (days.isNotEmpty() && (cal.get(Calendar.DAY_OF_WEEK) - 1) !in days) return false
+        val minute = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+        if (minute < startMinute || minute >= endMinute) return false
+        if (intervalMinutes != null && intervalDuration != null) {
+            return (minute - startMinute) % intervalMinutes < intervalDuration
+        }
+        return true
+    }
+}
+
+/**
+ * Programação completa da tela (servidor novo): conteúdo padrão + agendamentos.
+ * O app decide sozinho o que exibir em cada horário — continua seguindo a agenda sem internet.
+ */
+data class Program(
+    val zone: TimeZone,
+    val defaultSlides: List<Slide>,
+    val schedules: List<ScheduleRule>,
+) {
+    /** Slides que devem estar no ar em [timeMs]: agendamento ativo de maior prioridade, senão o padrão. */
+    fun slidesAt(timeMs: Long): List<Slide> {
+        val cal = Calendar.getInstance(zone).apply { timeInMillis = timeMs }
+        // Empate de prioridade: vale o primeiro da lista (mesma ordem do servidor)
+        var best: ScheduleRule? = null
+        for (s in schedules) if (s.isActiveAt(cal) && (best == null || s.priority > best.priority)) best = s
+        return best?.slides ?: defaultSlides
+    }
+
+    val allSlides: List<Slide> get() = defaultSlides + schedules.flatMap { it.slides }
+}
+
 data class TvConfig(
     val screenName: String,
     val portrait: Boolean,
     val slides: List<Slide>,
     val ticker: TickerCfg?,
     val power: PowerSchedule?,
+    val program: Program? = null,
 ) {
     val slidesSignature: String get() = slides.joinToString("|") { it.signature }
+
+    /** Esta configuração com os slides que valem agora pela programação (sem programação: como veio). */
+    fun resolvedAt(timeMs: Long = System.currentTimeMillis()): TvConfig =
+        program?.let { copy(slides = it.slidesAt(timeMs)) } ?: this
+
+    /** Slides de toda a programação (os do ar primeiro) — o que precisa estar no aparelho. */
+    val allSlides: List<Slide> get() = slides + (program?.allSlides ?: emptyList())
 }
 
 object ConfigParser {
 
     fun parse(json: JSONObject, baseUrl: String): TvConfig {
         val screen = json.optJSONObject("screen")
+        return TvConfig(
+            screenName = screen?.let { str(it, "name") } ?: "",
+            portrait = screen?.let { str(it, "orientation") } == "portrait",
+            slides = parseSlides(json.optJSONArray("slides"), baseUrl),
+            ticker = json.optJSONObject("ticker")?.let(::parseTicker),
+            power = json.optJSONObject("power")?.let(::parsePower),
+            program = json.optJSONObject("program")?.let { parseProgram(it, baseUrl) },
+        )
+    }
 
+    private fun parseProgram(p: JSONObject, baseUrl: String): Program {
+        // Fuso do servidor (é nele que os horários dos agendamentos foram definidos)
+        val offset = if (p.isNull("utcOffset")) null else p.optInt("utcOffset")
+        val zone = str(p, "timezone")
+            ?.let { id -> zoneFor(id).takeUnless { it.id == "GMT" && !id.equals("GMT", true) && !id.contains("UTC", true) } }
+            ?: offset?.let { SimpleTimeZone(it * 60_000, "server") }
+            ?: deviceZone()
+
+        val arr = p.optJSONArray("schedules") ?: JSONArray()
+        val schedules = (0 until arr.length()).mapNotNull { i ->
+            val s = arr.optJSONObject(i) ?: return@mapNotNull null
+            val daysArr = s.optJSONArray("days")
+            val days = if (daysArr == null) emptySet()
+            else (0 until daysArr.length()).map { daysArr.optInt(it, -1) }.filter { it in 0..6 }.toSet()
+            ScheduleRule(
+                id = s.opt("id")?.toString() ?: i.toString(),
+                priority = s.optInt("priority", 0),
+                days = days,
+                startMinute = minutes(str(s, "start_time")) ?: return@mapNotNull null,
+                endMinute = minutesEnd(str(s, "end_time")) ?: return@mapNotNull null,
+                intervalMinutes = positiveInt(s, "interval_minutes"),
+                intervalDuration = positiveInt(s, "interval_duration"),
+                dateFrom = str(s, "date_from")?.take(10),
+                dateTo = str(s, "date_to")?.take(10),
+                slides = parseSlides(s.optJSONArray("slides"), baseUrl),
+            )
+        }
+        return Program(zone, parseSlides(p.optJSONArray("default"), baseUrl), schedules)
+    }
+
+    private fun positiveInt(o: JSONObject, key: String): Int? =
+        if (o.isNull(key)) null else o.optInt(key, 0).takeIf { it > 0 }
+
+    private fun parseSlides(arr: JSONArray?, baseUrl: String): List<Slide> {
         val slides = mutableListOf<Slide>()
-        val arr = json.optJSONArray("slides") ?: JSONArray()
+        if (arr == null) return slides
         for (i in 0 until arr.length()) {
             val s = arr.optJSONObject(i) ?: continue
             val layout = s.optJSONObject("layout")
@@ -153,14 +257,7 @@ object ConfigParser {
                 zones = items,
             )
         }
-
-        return TvConfig(
-            screenName = screen?.let { str(it, "name") } ?: "",
-            portrait = screen?.let { str(it, "orientation") } == "portrait",
-            slides = slides,
-            ticker = json.optJSONObject("ticker")?.let(::parseTicker),
-            power = json.optJSONObject("power")?.let(::parsePower),
-        )
+        return slides
     }
 
     private fun parseItem(o: JSONObject, baseUrl: String): ZoneItem {
@@ -218,6 +315,12 @@ object ConfigParser {
         val m = parts.getOrNull(1)?.toIntOrNull() ?: 0
         if (h !in 0..24 || m !in 0..59) return null
         return (h * 60 + m).coerceAtMost(24 * 60 - 1)
+    }
+
+    /** Fim da janela do agendamento: "24:00" = até o fim do dia (o servidor compara texto, "23:59" < "24:00"). */
+    private fun minutesEnd(hhmm: String?): Int? {
+        val h = hhmm?.substringBefore(':')?.toIntOrNull() ?: return null
+        return if (h >= 24) 24 * 60 else minutes(hhmm)
     }
 
     /** org.json devolve "null" (texto) para JSON null em optString — evita isso. */

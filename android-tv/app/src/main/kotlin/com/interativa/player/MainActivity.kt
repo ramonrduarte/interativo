@@ -61,6 +61,7 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
     private val powerTick = object : Runnable {
         override fun run() {
             evaluatePower()
+            evaluateProgram()
             main.postDelayed(this, 30_000)
         }
     }
@@ -89,7 +90,7 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         super.onStart()
         // Volta do segundo plano: retoma a exibição (players são liberados no onStop)
         if (started && mode == Mode.SIGNAGE && !standby) {
-            ConfigStore.load(this)?.let { showContent(it) }
+            ConfigStore.load(this)?.let { showContent(it.resolvedAt()) }
             if (socket?.isConnected != true) connectSocket()
         }
         started = true
@@ -291,7 +292,7 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         val view = signage ?: SignageView(this).also { signage = it }
         view.removeFromParent()
         setScreen(view)
-        ConfigStore.load(this)?.let { if (ConfigStore.shouldBeOnNow(this)) showContent(it) }
+        ConfigStore.load(this)?.let { if (ConfigStore.shouldBeOnNow(this)) showContent(it.resolvedAt()) }
         connectSocket()
         main.removeCallbacks(powerTick)
         main.post(powerTick)
@@ -318,7 +319,7 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
     override fun onConfig(json: JSONObject) {
         rejectCount = 0
         ConfigStore.save(this, json)
-        val cfg = ConfigStore.load(this) ?: return
+        val cfg = ConfigStore.load(this)?.resolvedAt() ?: return
         PowerController.scheduleNext(this)
         evaluatePower()
         if (!standby && mode == Mode.SIGNAGE) showContent(cfg)
@@ -353,6 +354,17 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         VideoPrefetcher.prefetch(this, cfg, alsoKeep = VideoPrefetcher.videoUrls(current)) { p -> onSyncProgress(cfg, p) }
     }
 
+    /**
+     * Agendamentos decididos no próprio aparelho (programação completa): a cada 30 s confere
+     * se outra playlist deve entrar no ar — funciona mesmo sem conexão com o servidor.
+     */
+    private fun evaluateProgram() {
+        if (mode != Mode.SIGNAGE || standby) return
+        val cfg = ConfigStore.load(this)?.takeIf { it.program != null }?.resolvedAt() ?: return
+        val shown = pending ?: signage?.displayed ?: return
+        if (shown.slidesSignature != cfg.slidesSignature) showContent(cfg)
+    }
+
     private fun applyNow(cfg: TvConfig) {
         pending = null
         main.removeCallbacks(pendingTimeout)
@@ -361,8 +373,11 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
     }
 
     private fun onSyncProgress(cfg: TvConfig, p: SyncProgress) {
-        val waiting = pending?.slidesSignature == cfg.slidesSignature
+        var waiting = pending?.slidesSignature == cfg.slidesSignature
         socket?.sendSync(p, waiting)
+        // A playlist nova já está toda no aparelho: entra no ar sem esperar o resto da programação
+        // (ou uma falha num vídeo de outra playlist)
+        if (waiting && VideoPrefetcher.missing(cfg).isEmpty()) { applyNow(cfg); waiting = false }
         if (!p.finished) {
             syncing = true
             signage?.showSync("⬇  Atualizando conteúdo · ${p.done} de ${p.total} vídeo${if (p.total > 1) "s" else ""} · ${p.percent}%")
@@ -435,7 +450,7 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         turnScreenOn()
         if (!PowerController.isScreenOn(this)) PowerController.wake(this)
         PowerController.releaseCpu()
-        ConfigStore.load(this)?.let { showContent(it) }
+        ConfigStore.load(this)?.let { showContent(it.resolvedAt()) }
         if (socket?.isConnected != true) connectSocket() else socket?.sendHeartbeat()
     }
 
