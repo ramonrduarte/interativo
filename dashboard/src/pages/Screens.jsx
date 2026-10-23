@@ -6,7 +6,8 @@ import { Link2, Copy, Check, Tv, Globe, Moon, Radio, Plus, X, Clock, Smartphone,
 const iconInline = { verticalAlign: '-2px' }
 
 // Andamento do download do conteúdo no aparelho (enviado pelo app Android)
-function SyncLine({ sync }) {
+function SyncLine({ sync, screenId }) {
+  const [retrying, setRetrying] = useState(false)
   if (!sync || !sync.total) return null
   const time = new Date(sync.at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
   if (!sync.finished) {
@@ -22,9 +23,22 @@ function SyncLine({ sync }) {
   }
   if (sync.failed > 0) {
     return (
-      <span className="badge badge-warning" style={{ marginTop: 4 }} title="O aparelho tenta de novo automaticamente em 10 minutos">
-        <AlertTriangle size={10} /> {sync.failed} vídeo{sync.failed > 1 ? 's' : ''} não baixou · {time}
-      </span>
+      <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <span className="badge badge-warning" title="O aparelho tenta de novo automaticamente a cada minuto">
+          <AlertTriangle size={10} /> {sync.failed} vídeo{sync.failed > 1 ? 's' : ''} não baixou · {time}
+        </span>
+        {screenId && (
+          <button className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: 11 }} disabled={retrying}
+            title="Reenvia a playlist para a TV, que tenta baixar os vídeos na hora (app 1.7.0 ou mais novo)"
+            onClick={async () => {
+              setRetrying(true)
+              try { await api.pushScreen(screenId) } catch (e) { alert('Erro: ' + e.message) }
+              finally { setTimeout(() => setRetrying(false), 3000) }
+            }}>
+            <Download size={10} /> {retrying ? 'Enviando…' : 'Tentar agora'}
+          </button>
+        )}
+      </div>
     )
   }
   return (
@@ -35,7 +49,7 @@ function SyncLine({ sync }) {
 }
 
 // Aparelhos conectados a uma tela (app Android ou navegador)
-function DeviceList({ devices }) {
+function DeviceList({ devices, screenId }) {
   if (!devices?.length) return null
   return (
     <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
@@ -56,7 +70,7 @@ function DeviceList({ devices }) {
               <span className="badge badge-gray" style={{ marginLeft: 6, fontSize: 10 }}><Moon size={10} /> Fora do horário</span>
             )}
             {details && <div className="text-muted">{details}</div>}
-            <SyncLine sync={d.sync} />
+            <SyncLine sync={d.sync} screenId={screenId} />
           </div>
         )
       })}
@@ -431,7 +445,7 @@ export default function Screens() {
                         {s.online ? 'Online' : 'Offline'}
                         {s.devices?.length > 1 && ` · ${s.devices.length} aparelhos`}
                       </span>
-                      <DeviceList devices={s.devices} />
+                      <DeviceList devices={s.devices} screenId={s.id} />
                     </td>
                     <td>
                       <div className="table-actions">

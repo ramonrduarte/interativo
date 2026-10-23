@@ -369,7 +369,7 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
             return
         }
         if (p.failed > 0) {
-            signage?.showSync("⚠  ${p.failed} vídeo${if (p.failed > 1) "s" else ""} não baixou — tentando de novo em 10 min")
+            signage?.showSync("⚠  ${p.failed} vídeo${if (p.failed > 1) "s" else ""} não baixou — tentando de novo em 1 min")
             return
         }
         if (waiting) applyNow(cfg)

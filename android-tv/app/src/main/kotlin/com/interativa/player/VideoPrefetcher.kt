@@ -26,15 +26,17 @@ data class SyncProgress(
 /**
  * Baixa em segundo plano todos os vídeos de uma playlist para o cache em disco, um por vez,
  * informando o andamento. Vídeos fora das listas "mantidas" (playlist exibida + playlist nova)
- * são apagados do disco. Se algum download falhar, tenta de novo em 10 minutos.
+ * são apagados do disco. Se algum download falhar, tenta de novo em 1 minuto (continuando de
+ * onde parou) — ou na hora, quando a playlist chega de novo (reconexão ou "Enviar para TV").
  */
 object VideoPrefetcher {
     private const val TAG = "VideoPrefetcher"
-    private const val RETRY_MS = 10 * 60 * 1000L
+    private const val RETRY_MS = 60 * 1000L
 
     private val executor = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var generation = 0
+    @Volatile private var running = false
     @Volatile private var urls: List<String> = emptyList()
     @Volatile private var keep: Set<String> = emptySet()
     @Volatile private var listener: ((SyncProgress) -> Unit)? = null
@@ -64,6 +66,8 @@ object VideoPrefetcher {
         val newKeep = list.toSet() + alsoKeep
         if (onProgress != null) listener = onProgress
         if (list == urls && newKeep == keep) {
+            // Mesma playlist: se a última rodada falhou, tenta de novo já (sem esperar o próximo minuto)
+            if (!running && (last?.failed ?: 0) > 0) { start(app); return }
             last?.let { p -> onProgress?.let { cb -> main.post { cb(p) } } }
             return
         }
@@ -84,37 +88,42 @@ object VideoPrefetcher {
         val keepNow = keep
         main.removeCallbacksAndMessages(null)
         executor.execute {
-            MediaCache.removeUnused(keepNow)
-            val total = list.size
-            var done = list.count { MediaCache.isFullyCached(it) }
-            var failed = 0
-            report(gen, SyncProgress(done, total, if (total == 0) 100 else done * 100 / total, finished = done == total))
-            if (done == total) return@execute
-
-            for (url in list) {
-                if (gen != generation) return@execute // chegou outra playlist: recomeça com ela
-                if (MediaCache.isFullyCached(url)) continue
-                try {
-                    val ds = MediaCache.cachedFactory(app).createDataSource() as CacheDataSource
-                    var lastPct = -1
-                    CacheWriter(ds, DataSpec(Uri.parse(url)), null) { length, cached, _ ->
-                        val frac = if (length > 0) cached.toDouble() / length else 0.0
-                        val pct = ((done + frac) * 100 / total).toInt().coerceIn(0, 99)
-                        if (pct != lastPct) {
-                            lastPct = pct
-                            report(gen, SyncProgress(done, total, pct, finished = false))
-                        }
-                    }.cache()
-                    done++
-                    Log.i(TAG, "Vídeo salvo no aparelho ($done/$total): $url")
-                } catch (e: Exception) {
-                    failed++
-                    Log.w(TAG, "Falha ao baixar $url: ${e.message}")
-                }
-                report(gen, SyncProgress(done, total, done * 100 / total, finished = false, failed = failed))
-            }
-            report(gen, SyncProgress(done, total, done * 100 / total, finished = true, failed = failed))
-            if (failed > 0 && gen == generation) main.postDelayed({ if (gen == generation) start(app) }, RETRY_MS)
+            running = true
+            try { download(app, gen, list, keepNow) } finally { running = false }
         }
+    }
+
+    private fun download(app: Context, gen: Int, list: List<String>, keepNow: Set<String>) {
+        MediaCache.removeUnused(keepNow)
+        val total = list.size
+        var done = list.count { MediaCache.isFullyCached(it) }
+        var failed = 0
+        report(gen, SyncProgress(done, total, if (total == 0) 100 else done * 100 / total, finished = done == total))
+        if (done == total) return
+
+        for (url in list) {
+            if (gen != generation) return // chegou outra playlist: recomeça com ela
+            if (MediaCache.isFullyCached(url)) continue
+            try {
+                val ds = MediaCache.cachedFactory(app).createDataSource() as CacheDataSource
+                var lastPct = -1
+                CacheWriter(ds, DataSpec(Uri.parse(url)), null) { length, cached, _ ->
+                    val frac = if (length > 0) cached.toDouble() / length else 0.0
+                    val pct = ((done + frac) * 100 / total).toInt().coerceIn(0, 99)
+                    if (pct != lastPct) {
+                        lastPct = pct
+                        report(gen, SyncProgress(done, total, pct, finished = false))
+                    }
+                }.cache()
+                done++
+                Log.i(TAG, "Vídeo salvo no aparelho ($done/$total): $url")
+            } catch (e: Exception) {
+                failed++
+                Log.w(TAG, "Falha ao baixar $url: ${e.message}")
+            }
+            report(gen, SyncProgress(done, total, done * 100 / total, finished = false, failed = failed))
+        }
+        report(gen, SyncProgress(done, total, done * 100 / total, finished = true, failed = failed))
+        if (failed > 0 && gen == generation) main.postDelayed({ if (gen == generation) start(app) }, RETRY_MS)
     }
 }
