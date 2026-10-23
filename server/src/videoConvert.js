@@ -164,8 +164,14 @@ async function queueConversion(mediaId) {
   try {
     const src = path.join(uploadsDir, m.filename)
     if (!fs.existsSync(src)) return
+    const info = await probe(src)
+    // Duração medida pelo servidor: o navegador não consegue ler vídeos HEVC no upload,
+    // e sem ela a playlist não oferece a opção "duração do vídeo"
+    if (!m.video_duration && info?.duration > 0) {
+      await db.media.update(m.id, { video_duration: Math.round(info.duration) })
+    }
     // Miniatura para a Biblioteca (vídeos que vão ser convertidos ganham a deles depois)
-    if (!needsConversion(await probe(src))) { await ensureThumb(m.filename); return }
+    if (!needsConversion(info)) { await ensureThumb(m.filename); return }
   } catch (e) {
     console.warn(`[video] Não foi possível analisar "${m.name}":`, e.message)
     return

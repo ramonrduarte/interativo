@@ -89,7 +89,7 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         super.onStart()
         // Volta do segundo plano: retoma a exibição (players são liberados no onStop)
         if (started && mode == Mode.SIGNAGE && !standby) {
-            ConfigStore.load(this)?.let { signage?.apply(it) }
+            ConfigStore.load(this)?.let { showContent(it) }
             if (socket?.isConnected != true) connectSocket()
         }
         started = true
@@ -291,7 +291,7 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         val view = signage ?: SignageView(this).also { signage = it }
         view.removeFromParent()
         setScreen(view)
-        ConfigStore.load(this)?.let { if (ConfigStore.shouldBeOnNow(this)) view.apply(it) }
+        ConfigStore.load(this)?.let { if (ConfigStore.shouldBeOnNow(this)) showContent(it) }
         connectSocket()
         main.removeCallbacks(powerTick)
         main.post(powerTick)
@@ -321,7 +321,60 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         val cfg = ConfigStore.load(this) ?: return
         PowerController.scheduleNext(this)
         evaluatePower()
-        if (!standby && mode == Mode.SIGNAGE) signage?.apply(cfg)
+        if (!standby && mode == Mode.SIGNAGE) showContent(cfg)
+    }
+
+    // ── Troca de playlist só depois de baixar os vídeos ──────────────────────
+    //
+    // Com rede lenta (ex.: Wi-Fi fraco), tocar vídeo direto da rede trava no primeiro quadro.
+    // Quando chega uma playlist com vídeos ainda não salvos e já há algo na tela, a TV continua
+    // exibindo a programação atual, baixa tudo em segundo plano (com aviso na TV e no painel)
+    // e só então troca. Se demorar mais que PENDING_TIMEOUT_MS, troca mesmo assim.
+
+    private val PENDING_TIMEOUT_MS = 20 * 60 * 1000L
+    private var pending: TvConfig? = null
+    private var syncing = false
+    private val pendingTimeout = Runnable { pending?.let { applyNow(it) } }
+
+    private fun showContent(cfg: TvConfig) {
+        val view = signage ?: return
+        val current = view.displayed
+        val missing = VideoPrefetcher.missing(cfg)
+        if (current == null || missing.isEmpty() || current.slidesSignature == cfg.slidesSignature) {
+            applyNow(cfg)
+            return
+        }
+        if (pending?.slidesSignature != cfg.slidesSignature) {
+            main.removeCallbacks(pendingTimeout)
+            main.postDelayed(pendingTimeout, PENDING_TIMEOUT_MS)
+        }
+        pending = cfg
+        // Mantém no disco os vídeos da playlist em exibição enquanto baixa a nova
+        VideoPrefetcher.prefetch(this, cfg, alsoKeep = VideoPrefetcher.videoUrls(current)) { p -> onSyncProgress(cfg, p) }
+    }
+
+    private fun applyNow(cfg: TvConfig) {
+        pending = null
+        main.removeCallbacks(pendingTimeout)
+        signage?.apply(cfg)
+        VideoPrefetcher.prefetch(this, cfg) { p -> onSyncProgress(cfg, p) }
+    }
+
+    private fun onSyncProgress(cfg: TvConfig, p: SyncProgress) {
+        val waiting = pending?.slidesSignature == cfg.slidesSignature
+        socket?.sendSync(p, waiting)
+        if (!p.finished) {
+            syncing = true
+            signage?.showSync("⬇  Atualizando conteúdo · ${p.done} de ${p.total} vídeo${if (p.total > 1) "s" else ""} · ${p.percent}%")
+            return
+        }
+        if (p.failed > 0) {
+            signage?.showSync("⚠  ${p.failed} vídeo${if (p.failed > 1) "s" else ""} não baixou — tentando de novo em 10 min")
+            return
+        }
+        if (waiting) applyNow(cfg)
+        if (syncing) signage?.showSync("✓  Conteúdo atualizado", ok = true)
+        syncing = false
     }
 
     override fun onRejected() {
@@ -339,6 +392,8 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
     }
 
     private fun unpair(message: String?) {
+        pending = null
+        main.removeCallbacks(pendingTimeout)
         socket?.disconnect()
         socket = null
         main.removeCallbacks(powerTick)
@@ -380,7 +435,7 @@ class MainActivity : AppCompatActivity(), TvSocket.Listener {
         turnScreenOn()
         if (!PowerController.isScreenOn(this)) PowerController.wake(this)
         PowerController.releaseCpu()
-        ConfigStore.load(this)?.let { signage?.apply(it) }
+        ConfigStore.load(this)?.let { showContent(it) }
         if (socket?.isConnected != true) connectSocket() else socket?.sendHeartbeat()
     }
 

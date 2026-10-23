@@ -1,9 +1,38 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { api } from '../api.js'
 import socket from '../socket.js'
-import { Link2, Copy, Check, Tv, Globe, Moon, Radio, Plus, X, Clock, Smartphone, Monitor, Layers, Trash2, AlertTriangle } from 'lucide-react'
+import { Link2, Copy, Check, Tv, Globe, Moon, Radio, Plus, X, Clock, Smartphone, Monitor, Layers, Trash2, AlertTriangle, Download } from 'lucide-react'
 
 const iconInline = { verticalAlign: '-2px' }
+
+// Andamento do download do conteúdo no aparelho (enviado pelo app Android)
+function SyncLine({ sync }) {
+  if (!sync || !sync.total) return null
+  const time = new Date(sync.at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  if (!sync.finished) {
+    return (
+      <div style={{ marginTop: 4, display: 'grid', gap: 3, maxWidth: 220 }}>
+        <span className="badge badge-blue" style={{ justifySelf: 'start' }}>
+          <Download size={10} /> Baixando conteúdo {sync.done}/{sync.total} · {sync.percent}%
+        </span>
+        <div className="progress" style={{ height: 4 }}><div style={{ width: sync.percent + '%' }} /></div>
+        {sync.waiting && <span className="text-muted" style={{ fontSize: 11 }}>A TV troca de playlist quando terminar</span>}
+      </div>
+    )
+  }
+  if (sync.failed > 0) {
+    return (
+      <span className="badge badge-warning" style={{ marginTop: 4 }} title="O aparelho tenta de novo automaticamente em 10 minutos">
+        <AlertTriangle size={10} /> {sync.failed} vídeo{sync.failed > 1 ? 's' : ''} não baixou · {time}
+      </span>
+    )
+  }
+  return (
+    <span className="badge badge-success" style={{ marginTop: 4 }}>
+      <Check size={10} /> Conteúdo atualizado · {time}
+    </span>
+  )
+}
 
 // Aparelhos conectados a uma tela (app Android ou navegador)
 function DeviceList({ devices }) {
@@ -27,6 +56,7 @@ function DeviceList({ devices }) {
               <span className="badge badge-gray" style={{ marginLeft: 6, fontSize: 10 }}><Moon size={10} /> Fora do horário</span>
             )}
             {details && <div className="text-muted">{details}</div>}
+            <SyncLine sync={d.sync} />
           </div>
         )
       })}

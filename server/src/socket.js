@@ -204,6 +204,25 @@ function initSocket(server) {
         if (device.screenId) emitStatus(token, device.screenId)
       })
 
+      // Andamento do download dos vídeos (app Android) — repassado ao painel no máximo 1x/s
+      let syncTimer = null
+      socket.on('tv:sync', d => {
+        if (!d || typeof d !== 'object') return
+        const n = v => Math.max(0, Math.min(100000, Number(v) || 0))
+        device.sync = {
+          done: n(d.done), total: n(d.total), percent: Math.min(100, n(d.percent)),
+          finished: !!d.finished, failed: n(d.failed), waiting: !!d.waiting,
+          at: new Date().toISOString(),
+        }
+        if (!device.screenId) return
+        if (device.sync.finished) {
+          clearTimeout(syncTimer); syncTimer = null
+          emitStatus(token, device.screenId)
+        } else if (!syncTimer) {
+          syncTimer = setTimeout(() => { syncTimer = null; emitStatus(token, device.screenId) }, 1000)
+        }
+      })
+
       socket.on('tv:heartbeat', data => {
         const prevPower = device.power
         device.lastSeen = new Date().toISOString()

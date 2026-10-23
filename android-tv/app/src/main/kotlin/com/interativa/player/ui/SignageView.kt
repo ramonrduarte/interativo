@@ -15,7 +15,6 @@ import coil.request.CachePolicy
 import coil.request.ImageRequest
 import com.interativa.player.Slide
 import com.interativa.player.TvConfig
-import com.interativa.player.VideoPrefetcher
 
 /** Um slide: grade de zonas do template, cada zona com seu conteúdo. */
 class SlideView(ctx: Context, slide: Slide, onVideoEnd: (() -> Unit)?) : ZoneGridLayout(ctx, slide.template) {
@@ -64,6 +63,16 @@ class SignageView(ctx: Context) : FrameLayout(ctx) {
         visibility = GONE
     }
 
+    // Aviso de atualização de conteúdo (canto superior esquerdo)
+    private val syncBadge = TextView(ctx).apply {
+        textSize = 13f
+        setTextColor(Color.WHITE)
+        background = Ui.rounded(Color.argb(200, 15, 23, 42), Ui.dp(ctx, 8))
+        setPadding(Ui.dp(ctx, 12), Ui.dp(ctx, 7), Ui.dp(ctx, 12), Ui.dp(ctx, 7))
+        visibility = GONE
+    }
+    private val hideSync = Runnable { syncBadge.visibility = GONE }
+
     private var config: TvConfig? = null
     private var index = 0
     private var current: SlideView? = null
@@ -80,11 +89,31 @@ class SignageView(ctx: Context) : FrameLayout(ctx) {
         addView(badge, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.END).apply {
             setMargins(0, Ui.dp(ctx, 12), Ui.dp(ctx, 12), 0)
         })
+        addView(syncBadge, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.START).apply {
+            setMargins(Ui.dp(ctx, 12), Ui.dp(ctx, 12), 0, 0)
+        })
     }
 
     fun setConnected(connected: Boolean) {
         badge.visibility = if (connected || config == null) GONE else VISIBLE
     }
+
+    /** Mostra o andamento; [ok] = terminou (some sozinho depois de alguns segundos). */
+    fun showSync(text: String, ok: Boolean = false) {
+        main.removeCallbacks(hideSync)
+        syncBadge.text = text
+        syncBadge.setTextColor(if (ok) Color.parseColor("#86EFAC") else Color.WHITE)
+        syncBadge.visibility = VISIBLE
+        if (ok) main.postDelayed(hideSync, 6_000)
+    }
+
+    fun hideSync() {
+        main.removeCallbacks(hideSync)
+        syncBadge.visibility = GONE
+    }
+
+    /** Configuração em exibição (null se nada está sendo mostrado). */
+    val displayed: TvConfig? get() = config
 
     val isShowing: Boolean get() = current != null || placeholder != null
 
@@ -96,7 +125,6 @@ class SignageView(ctx: Context) : FrameLayout(ctx) {
         ticker.bind(cfg.ticker)
         ticker.visibility = if (cfg.ticker != null) VISIBLE else GONE
         prefetchImages(cfg)
-        VideoPrefetcher.prefetch(context, cfg)
         val changed = old == null || old.slidesSignature != cfg.slidesSignature
         if (changed || !isShowing) {
             index = 0

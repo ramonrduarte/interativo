@@ -14,11 +14,19 @@ import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheWriter
 import java.util.concurrent.Executors
 
+/** Andamento do download dos vídeos de uma playlist. */
+data class SyncProgress(
+    val done: Int,          // vídeos já completos no aparelho
+    val total: Int,         // vídeos da playlist
+    val percent: Int,       // andamento geral (0–100)
+    val finished: Boolean,  // terminou (com ou sem falhas)
+    val failed: Int = 0,    // vídeos que não conseguiram baixar nesta rodada
+)
+
 /**
- * Baixa em segundo plano todos os vídeos da playlist para o cache em disco,
- * um por vez. Assim a TV continua exibindo tudo mesmo se a internet cair —
- * inclusive vídeos que ainda não tocaram. Vídeos que saíram da playlist são
- * apagados do disco. Se algum download falhar, tenta de novo em 10 minutos.
+ * Baixa em segundo plano todos os vídeos de uma playlist para o cache em disco, um por vez,
+ * informando o andamento. Vídeos fora das listas "mantidas" (playlist exibida + playlist nova)
+ * são apagados do disco. Se algum download falhar, tenta de novo em 10 minutos.
  */
 object VideoPrefetcher {
     private const val TAG = "VideoPrefetcher"
@@ -28,44 +36,85 @@ object VideoPrefetcher {
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var generation = 0
     @Volatile private var urls: List<String> = emptyList()
+    @Volatile private var keep: Set<String> = emptySet()
+    @Volatile private var listener: ((SyncProgress) -> Unit)? = null
+    @Volatile var last: SyncProgress? = null
+        private set
 
-    /** (baixados, total) — mostrado no menu do app. */
+    fun videoUrls(cfg: TvConfig): List<String> = cfg.slides.flatMap { it.zones.values }
+        .filter { it.type == "video" && it.url != null }
+        .mapNotNull { it.url }
+        .distinct()
+
+    fun missing(cfg: TvConfig): List<String> = videoUrls(cfg).filterNot { MediaCache.isFullyCached(it) }
+
+    /** (baixados, total) da última playlist pedida — mostrado no menu do app. */
     fun progress(): Pair<Int, Int> {
         val list = urls
         return list.count { MediaCache.isFullyCached(it) } to list.size
     }
 
-    fun prefetch(ctx: Context, cfg: TvConfig) {
+    /**
+     * Baixa os vídeos de [cfg]. [alsoKeep] são vídeos que não podem ser apagados do disco
+     * (os da playlist ainda em exibição). [onProgress] é chamado na thread principal.
+     */
+    fun prefetch(ctx: Context, cfg: TvConfig, alsoKeep: Collection<String> = emptyList(), onProgress: ((SyncProgress) -> Unit)? = null) {
         val app = ctx.applicationContext
-        val list = cfg.slides.flatMap { it.zones.values }
-            .filter { it.type == "video" && it.url != null }
-            .mapNotNull { it.url }
-            .distinct()
-        if (list == urls) return
+        val list = videoUrls(cfg)
+        val newKeep = list.toSet() + alsoKeep
+        if (onProgress != null) listener = onProgress
+        if (list == urls && newKeep == keep) {
+            last?.let { p -> onProgress?.let { cb -> main.post { cb(p) } } }
+            return
+        }
         urls = list
+        keep = newKeep
         start(app)
+    }
+
+    private fun report(gen: Int, p: SyncProgress) {
+        if (gen != generation) return
+        last = p
+        main.post { if (gen == generation) listener?.invoke(p) }
     }
 
     private fun start(app: Context) {
         val gen = ++generation
         val list = urls
+        val keepNow = keep
         main.removeCallbacksAndMessages(null)
         executor.execute {
-            MediaCache.removeUnused(list.toSet())
-            var failed = false
+            MediaCache.removeUnused(keepNow)
+            val total = list.size
+            var done = list.count { MediaCache.isFullyCached(it) }
+            var failed = 0
+            report(gen, SyncProgress(done, total, if (total == 0) 100 else done * 100 / total, finished = done == total))
+            if (done == total) return@execute
+
             for (url in list) {
-                if (gen != generation) return@execute // playlist mudou: recomeça com a nova
+                if (gen != generation) return@execute // chegou outra playlist: recomeça com ela
                 if (MediaCache.isFullyCached(url)) continue
                 try {
                     val ds = MediaCache.cachedFactory(app).createDataSource() as CacheDataSource
-                    CacheWriter(ds, DataSpec(Uri.parse(url)), null, null).cache()
-                    Log.i(TAG, "Vídeo salvo no aparelho: $url")
+                    var lastPct = -1
+                    CacheWriter(ds, DataSpec(Uri.parse(url)), null) { length, cached, _ ->
+                        val frac = if (length > 0) cached.toDouble() / length else 0.0
+                        val pct = ((done + frac) * 100 / total).toInt().coerceIn(0, 99)
+                        if (pct != lastPct) {
+                            lastPct = pct
+                            report(gen, SyncProgress(done, total, pct, finished = false))
+                        }
+                    }.cache()
+                    done++
+                    Log.i(TAG, "Vídeo salvo no aparelho ($done/$total): $url")
                 } catch (e: Exception) {
-                    failed = true
+                    failed++
                     Log.w(TAG, "Falha ao baixar $url: ${e.message}")
                 }
+                report(gen, SyncProgress(done, total, done * 100 / total, finished = false, failed = failed))
             }
-            if (failed && gen == generation) main.postDelayed({ if (gen == generation) start(app) }, RETRY_MS)
+            report(gen, SyncProgress(done, total, done * 100 / total, finished = true, failed = failed))
+            if (failed > 0 && gen == generation) main.postDelayed({ if (gen == generation) start(app) }, RETRY_MS)
         }
     }
 }

@@ -49,6 +49,16 @@ class TvSocket(
         socket?.takeIf { it.connected() }?.emit("tv:heartbeat", JSONObject().put("token", token).put("power", powerState()))
     }
 
+    /** Andamento do download dos vídeos — mostrado no painel (Telas → Status). */
+    fun sendSync(p: SyncProgress, waiting: Boolean) {
+        socket?.takeIf { it.connected() }?.emit(
+            "tv:sync",
+            JSONObject()
+                .put("done", p.done).put("total", p.total).put("percent", p.percent)
+                .put("finished", p.finished).put("failed", p.failed).put("waiting", waiting),
+        )
+    }
+
     /** Identificação do aparelho exibida no painel (Telas → Status). */
     private fun deviceInfo() = JSONObject()
         .put("client", "android-app")
