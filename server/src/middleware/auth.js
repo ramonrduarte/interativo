@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken')
 
 const SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-prod'
 
-module.exports = function requireAuth(req, res, next) {
+function requireAuth(req, res, next) {
   const auth = req.headers.authorization
   if (!auth || !auth.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Não autenticado' })
@@ -14,3 +14,6 @@ module.exports = function requireAuth(req, res, next) {
     res.status(401).json({ error: 'Token inválido ou expirado' })
   }
 }
+
+module.exports = requireAuth
+module.exports.SECRET = SECRET

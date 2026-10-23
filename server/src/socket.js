@@ -1,4 +1,6 @@
 const { Server } = require('socket.io')
+const jwt = require('jsonwebtoken')
+const { SECRET } = require('./middleware/auth')
 const { db } = require('./db')
 const { isScheduleActiveNow } = require('./scheduleUtils')
 
@@ -6,6 +8,7 @@ let io
 const registry        = new Map()  // token -> { socketId, screenId, lastSeen }  (tela online)
 const pairingRegistry = new Map()  // code  -> socketId
 const devices         = new Map()  // socketId -> aparelho conectado (pode haver vários por tela)
+const screenCompany   = new Map()  // screenId -> company_id (para avisar só o painel da empresa dona)
 
 // ---------------------------------------------------------------------------
 // Aparelhos conectados
@@ -45,15 +48,17 @@ function devicesFor(token) {
 function statusFor(token, screenId) {
   const list = devicesFor(token)
   return {
-    screenId, token,
+    screenId,
     online:   list.length > 0,
     lastSeen: list.length ? list.map(d => d.lastSeen).sort().pop() : new Date().toISOString(),
     devices:  list,
   }
 }
 
+// Só o painel da empresa dona da tela recebe o status (sala "dashboard:<empresa>")
 function emitStatus(token, screenId) {
-  if (io) io.to('dashboard').emit('screen:status', statusFor(token, screenId))
+  const companyId = screenCompany.get(screenId)
+  if (io && companyId != null) io.to(`dashboard:${companyId}`).emit('screen:status', statusFor(token, screenId))
 }
 
 // ---------------------------------------------------------------------------
@@ -252,6 +257,7 @@ function initSocket(server) {
       if (!socket.connected) return
 
       device.screenId = screen.id
+      screenCompany.set(screen.id, screen.company_id)
       socket.join(token)
       registry.set(token, { socketId: socket.id, screenId: screen.id, lastSeen: now })
 
@@ -263,9 +269,18 @@ function initSocket(server) {
     }
 
     // ── Dashboard connection ──────────────────────────────────────────────────
-    socket.join('dashboard')
+    // Exige o mesmo login (JWT) da API; cada empresa recebe só as telas dela
+    let user
+    try { user = jwt.verify(String(socket.handshake.auth?.token || ''), SECRET) }
+    catch {
+      socket.emit('auth:error', { error: 'Não autenticado' })
+      socket.disconnect()
+      return
+    }
+    if (user.company_id == null) { socket.disconnect(); return }
+    socket.join(`dashboard:${user.company_id}`)
     registry.forEach((info, t) => {
-      socket.emit('screen:status', statusFor(t, info.screenId))
+      if (screenCompany.get(info.screenId) == user.company_id) socket.emit('screen:status', statusFor(t, info.screenId))
     })
   })
 

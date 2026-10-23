@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import Sidebar from './components/Sidebar.jsx'
 import Library from './pages/Library.jsx'
@@ -11,6 +11,7 @@ import Login from './pages/Login.jsx'
 import Settings from './pages/Settings.jsx'
 import Companies from './pages/Companies.jsx'
 import PlaylistGroups from './pages/PlaylistGroups.jsx'
+import { reconnectSocket } from './socket.js'
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null } }
@@ -62,6 +63,9 @@ export default function App() {
   // continuar funcionando depois de recarregar a página.
   const ADMIN_TOKEN_KEY = 'auth_token_admin'
   const navigate = useNavigate()
+
+  // Conexão ao vivo usa o login atual: reconecta ao entrar, sair ou trocar de empresa
+  useEffect(() => { reconnectSocket() }, [user])
 
   function handleLogin(userData) {
     localStorage.removeItem(ADMIN_TOKEN_KEY)

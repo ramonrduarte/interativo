@@ -15,8 +15,8 @@ export default function Control() {
   useEffect(() => {
     load()
 
-    socket.on('screen:status', ({ token, online, lastSeen }) => {
-      setStatuses(prev => ({ ...prev, [token]: { online, lastSeen } }))
+    socket.on('screen:status', ({ screenId, online, lastSeen }) => {
+      setStatuses(prev => ({ ...prev, [screenId]: { online, lastSeen } }))
     })
 
     return () => socket.off('screen:status')
@@ -40,8 +40,8 @@ export default function Control() {
 
   const merged = screens.map(s => ({
     ...s,
-    online: statuses[s.token]?.online ?? s.online ?? false,
-    lastSeen: statuses[s.token]?.lastSeen,
+    online: statuses[s.id]?.online ?? s.online ?? false,
+    lastSeen: statuses[s.id]?.lastSeen,
   }))
 
   return (

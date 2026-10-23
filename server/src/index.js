@@ -7,6 +7,7 @@ const { initSocket, pushToScreen, completePairing, getPairingEntry, registry, pa
 const { startScheduler, getDebugState } = require('./scheduler')
 const { isScheduleActiveNow } = require('./scheduleUtils')
 const requireAuth = require('./middleware/auth')
+const requireSuperadmin = require('./middleware/superadmin')
 
 async function main() {
   // Initialize database + run migrations + seed layouts + seed default company/user
@@ -38,8 +39,8 @@ async function main() {
     res.json({ ok: true, connectedScreens: registry.size, uptime: process.uptime() })
   })
 
-  // Debug endpoint — shows scheduler state + connected screens (no auth, local diagnosis)
-  app.get('/api/debug/scheduler', async (_req, res) => {
+  // Debug endpoint — shows scheduler state + connected screens (somente administrador principal)
+  app.get('/api/debug/scheduler', requireAuth, requireSuperadmin, async (_req, res) => {
     try {
       const now = new Date()
       const hh  = String(now.getHours()).padStart(2, '0')

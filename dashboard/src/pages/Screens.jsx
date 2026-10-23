@@ -309,8 +309,8 @@ export default function Screens() {
   useEffect(() => {
     load()
     // Atualiza online/aparelhos ao vivo
-    function onStatus({ token, online, devices }) {
-      setScreens(prev => prev.map(s => s.token === token ? { ...s, online, devices: devices || [] } : s))
+    function onStatus({ screenId, online, devices }) {
+      setScreens(prev => prev.map(s => s.id == screenId ? { ...s, online, devices: devices || [] } : s))
     }
     socket.on('screen:status', onStatus)
     return () => socket.off('screen:status', onStatus)
